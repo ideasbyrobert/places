@@ -1,0 +1,95 @@
+name: GridWindowManager
+options:
+  bundleIdPrefix: com.ideasbyrobert
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "15.0"
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    ARCHS: "$(ARCHS_STANDARD)"
+    CLANG_ENABLE_MODULES: YES
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_VERSION: "6.0"
+targets:
+  GridWindowManager:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/GridWindowManager
+    info:
+      path: Resources/Info.plist
+      properties:
+        LSApplicationCategoryType: public.app-category.utilities
+        LSUIElement: true
+    entitlements:
+      path: Resources/GridWindowManager.entitlements
+    settings:
+      base:
+        COMBINE_HIDPI_IMAGES: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManager
+        PRODUCT_NAME: GridWindowManager
+  WindowFixtureApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/WindowFixtureApp
+    info:
+      path: Resources/FixtureInfo.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManager.WindowFixtureApp
+        PRODUCT_NAME: WindowFixtureApp
+  GridWindowManagerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/GridWindowManagerTests
+    dependencies:
+      - target: GridWindowManager
+      - target: WindowFixtureApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManagerTests
+  GridWindowManagerUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: Tests/GridWindowManagerUITests
+    dependencies:
+      - target: GridWindowManager
+      - target: WindowFixtureApp
+    settings:
+      base:
+        ENABLE_HARDENED_RUNTIME: NO
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManagerUITests
+schemes:
+  GridWindowManager:
+    build:
+      targets:
+        GridWindowManager: all
+        WindowFixtureApp: [test]
+        GridWindowManagerTests: [test]
+        GridWindowManagerUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - GridWindowManagerTests
+        - GridWindowManagerUITests
+    archive:
+      config: Release
+  WindowFixtureApp:
+    build:
+      targets:
+        WindowFixtureApp: all
+    run:
+      config: Debug

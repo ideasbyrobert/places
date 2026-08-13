@@ -1,0 +1,9 @@
+.DS_Store
+.build/
+build/
+dist/
+GridWindowManager.xcodeproj/
+*.xcarchive
+*.dmg
+*.log
+xcuserdata/
