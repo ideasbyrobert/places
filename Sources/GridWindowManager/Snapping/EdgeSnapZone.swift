@@ -1,6 +1,6 @@
 import Foundation
 
-enum EdgeSnapZone: String, CaseIterable, Sendable
+enum EdgeSnapZone: String, CaseIterable, Equatable, Sendable
 {
     case fill
     case leftHalf

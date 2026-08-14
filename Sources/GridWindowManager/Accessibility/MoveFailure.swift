@@ -14,6 +14,7 @@ enum MoveFailure: Error, Equatable, Sendable
     case staleWindow
     case windowChanged
     case nothingToUndo
+    case terminalStateRestoreRequired
     case noDisplays
     case accessibilityFailure(Int32)
 
@@ -22,7 +23,7 @@ enum MoveFailure: Error, Equatable, Sendable
         switch self
         {
         case .accessibilityPermissionRequired:
-            "Accessibility permission is required."
+            "Window Control permission is required."
         case .noTargetApplication:
             "No application window is available."
         case .noFocusedWindow:
@@ -45,6 +46,8 @@ enum MoveFailure: Error, Equatable, Sendable
             "Undo was skipped because the window changed."
         case .nothingToUndo:
             "Nothing to undo."
+        case .terminalStateRestoreRequired:
+            "Terminal dimensions must be restored with the complete arrangement."
         case .noDisplays:
             "No usable display is available."
         case .accessibilityFailure(let code):

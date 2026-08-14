@@ -37,6 +37,19 @@ struct FixtureControlView: View
             Spacer()
         }
         .padding(28)
+        .task
+        {
+            guard ProcessInfo.processInfo.arguments.contains(
+                "--ui-testing-open-all-windows"
+            )
+            else
+            {
+                return
+            }
+            openWindow(id: "resizable")
+            openWindow(id: "minimum")
+            openWindow(id: "fixed")
+        }
         .alert("System Dialog Fixture", isPresented: $showsDialog)
         {
             Button("Dismiss", role: .cancel)

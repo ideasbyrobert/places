@@ -37,36 +37,44 @@ final class AccessibilityIntegrationTests: XCTestCase
             processIdentifier: application.processIdentifier,
             converter: converter
         )
-        guard case .success(let snapshots) = capture,
-              let regions = FourByTwoBatchLayout().regions(forWindowCount: snapshots.count)
+        guard case .success(let snapshots) = capture
         else
         {
             XCTFail("The fixture windows could not be captured for batch arrangement")
             return
         }
-        for (snapshot, region) in zip(snapshots, regions)
+        let arrangementService = BalancedWindowArrangementService(
+            windowManager: manager,
+            terminalWindowSizing: TerminalWindowSizingService(),
+            calculator: GridLayoutCalculator()
+        )
+        let arrangementResult = await arrangementService.arrange(
+            processIdentifier: application.processIdentifier,
+            bundleIdentifier: application.bundleIdentifier,
+            targetScreen: screen,
+            spacing: 8,
+            converter: converter
+        )
+        guard case .arranged(let arrangedCount, _, false) = arrangementResult
+        else
         {
-            let command = LayoutCommand.grid(region)
-            let target = GridLayoutCalculator().target(
-                for: command,
-                on: screen,
-                currentWindowFrame: snapshot.frame,
-                spacing: 8
+            XCTFail("The fixture windows were not arranged")
+            return
+        }
+        XCTAssertEqual(arrangedCount, snapshots.count)
+        for snapshot in snapshots
+        {
+            let arrangedCapture = await manager.snapshot(
+                for: snapshot.token,
+                converter: converter
             )
-            let result = await manager.apply(
-                target: target,
-                to: snapshot.token,
-                converter: converter,
-                command: command
-            )
-
-            switch result
+            guard case .captured(let arrangedWindow) = arrangedCapture
+            else
             {
-            case .moved(let frame), .bestEffort(let frame):
-                XCTAssertTrue(screen.visibleFrame.intersects(frame))
-            case .failed(let failure):
-                XCTFail(failure.message)
+                XCTFail("The arranged fixture window could not be recaptured")
+                return
             }
+            XCTAssertTrue(screen.visibleFrame.intersects(arrangedWindow.frame))
         }
 
         guard let firstWindow = snapshots.first
@@ -145,6 +153,75 @@ final class AccessibilityIntegrationTests: XCTestCase
             XCTAssertEqual(frame.minY, centeredFrame.minY, accuracy: 2)
         case .failed(let failure):
             XCTFail(failure.message)
+        }
+
+        let screens = provider.snapshots()
+        if let sourceScreen = provider.screen(containing: centeredFrame, in: screens),
+           let destinationScreen = provider.adjacent(
+               to: sourceScreen,
+               direction: .next,
+               in: screens
+           )
+        {
+            let displayService = DisplayWindowManagementService(
+                windowManager: manager,
+                displayProvider: provider,
+                calculator: GridLayoutCalculator(),
+                transferCalculator: DisplayTransferCalculator()
+            )
+            let transferResult = await displayService.moveAppWindows(
+                processIdentifier: application.processIdentifier,
+                to: destinationScreen,
+                screens: screens,
+                spacing: 8,
+                converter: converter
+            )
+            guard case .moved(let movedCount, _) = transferResult
+            else
+            {
+                XCTFail("The fixture windows were not transferred as one display batch")
+                return
+            }
+            XCTAssertEqual(movedCount, snapshots.count)
+            let transferredCapture = await manager.captureStandardWindows(
+                processIdentifier: application.processIdentifier,
+                converter: converter
+            )
+            guard case .success(let transferredWindows) = transferredCapture
+            else
+            {
+                XCTFail("The transferred fixture windows could not be recaptured")
+                return
+            }
+            XCTAssertTrue(transferredWindows.allSatisfy
+            {
+                provider.screen(containing: $0.frame, in: screens)?.displayID
+                    == destinationScreen.displayID
+            })
+
+            let displayUndo = await manager.undoLast(converter: converter)
+            switch displayUndo
+            {
+            case .moved, .bestEffort:
+                break
+            case .failed(let failure):
+                XCTFail(failure.message)
+            }
+            let restoredCapture = await manager.captureStandardWindows(
+                processIdentifier: application.processIdentifier,
+                converter: converter
+            )
+            guard case .success(let restoredWindows) = restoredCapture
+            else
+            {
+                XCTFail("The restored fixture windows could not be recaptured")
+                return
+            }
+            XCTAssertTrue(restoredWindows.allSatisfy
+            {
+                provider.screen(containing: $0.frame, in: screens)?.displayID
+                    == sourceScreen.displayID
+            })
         }
     }
 

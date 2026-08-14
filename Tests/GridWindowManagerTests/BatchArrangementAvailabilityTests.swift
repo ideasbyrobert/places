@@ -26,6 +26,6 @@ final class BatchArrangementAvailabilityTests: XCTestCase
         )
 
         XCTAssertFalse(availability.isAvailable)
-        XCTAssertEqual(availability.detailText, "Accessibility required")
+        XCTAssertEqual(availability.detailText, "Window Control required")
     }
 }

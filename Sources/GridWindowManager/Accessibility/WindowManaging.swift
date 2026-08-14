@@ -35,6 +35,12 @@ protocol WindowManaging: Sendable
         historyPreviousFrame: CGRect?
     ) async -> MoveResult
 
+    func applyBatch(
+        _ requests: [WindowPlacementRequest],
+        terminalState: TerminalArrangementState?,
+        converter: ScreenCoordinateConverter
+    ) async -> MoveResult
+
     func perform(
         _ action: WindowLifecycleAction,
         on token: ManagedWindowToken,
@@ -42,6 +48,20 @@ protocol WindowManaging: Sendable
     ) async -> WindowOperationResult
 
     func undoLast(converter: ScreenCoordinateConverter) async -> MoveResult
+
+    func prepareUndo(
+        converter: ScreenCoordinateConverter
+    ) async -> Result<WindowArrangementTransaction, MoveFailure>
+
+    func commitPreparedUndo(
+        transactionIdentifier: UUID,
+        converter: ScreenCoordinateConverter
+    ) async -> MoveResult
+
+    func restoreFrames(
+        _ states: [WindowFrameState],
+        converter: ScreenCoordinateConverter
+    ) async -> MoveResult
 
     func lastCommand(for token: ManagedWindowToken) async -> LayoutCommand?
 }

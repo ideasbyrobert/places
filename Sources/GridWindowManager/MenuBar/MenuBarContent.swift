@@ -5,12 +5,14 @@ struct MenuBarContent: View
     @ObservedObject var controller: AppController
     @ObservedObject private var preferences: AppPreferences
     @ObservedObject private var authorization: AccessibilityAuthorizationService
+    @ObservedObject private var desktopVisibility: DesktopVisibilityService
 
     init(controller: AppController)
     {
         self.controller = controller
         preferences = controller.preferences
         authorization = controller.authorization
+        desktopVisibility = controller.desktopVisibility
     }
 
     var body: some View
@@ -151,6 +153,44 @@ struct MenuBarContent: View
             controller.refreshSavedLayoutSlots()
         }
 
+        Menu("Desktop")
+        {
+            Button(desktopVisibility.isDesktopShown ? "Restore Desktop" : "Show Desktop")
+            {
+                controller.showOrRestoreDesktop()
+            }
+        }
+
+        Menu("Displays")
+        {
+            Button("Gather App Windows on This Display")
+            {
+                controller.gatherAppWindowsOnFocusedDisplay()
+            }
+
+            Button("Move App Windows to Previous Display")
+            {
+                controller.moveAppWindowsToPreviousDisplay()
+            }
+
+            Button("Move App Windows to Next Display")
+            {
+                controller.moveAppWindowsToNextDisplay()
+            }
+
+            Divider()
+
+            Button("Move Focused Window to Previous Display")
+            {
+                controller.moveToPreviousDisplay()
+            }
+
+            Button("Move Focused Window to Next Display")
+            {
+                controller.moveToNextDisplay()
+            }
+        }
+
         Divider()
 
         Button("Restore Previous Frame")
@@ -181,16 +221,6 @@ struct MenuBarContent: View
             }
         }
 
-        Button("Previous Display")
-        {
-            controller.moveToPreviousDisplay()
-        }
-
-        Button("Next Display")
-        {
-            controller.moveToNextDisplay()
-        }
-
         if let statusMessage = controller.statusMessage
         {
             Divider()
@@ -199,7 +229,7 @@ struct MenuBarContent: View
 
         Divider()
 
-        Button(authorization.isTrusted ? "Accessibility: Allowed" : "Accessibility: Required")
+        Button(authorization.isTrusted ? "Window Control: Allowed" : "Window Control: Required")
         {
             controller.showPermissionWindow()
         }

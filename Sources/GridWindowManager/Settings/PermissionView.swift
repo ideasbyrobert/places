@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PermissionView: View
@@ -15,12 +16,12 @@ struct PermissionView: View
 
             VStack(alignment: .leading, spacing: 8)
             {
-                Text(authorization.isTrusted ? "Ready to Arrange Windows" : "Allow Window Arrangement")
+                Text(authorization.isTrusted ? "Ready to Arrange Windows" : "Allow Window Control")
                     .font(.title2.weight(.semibold))
                 Text(
                     authorization.isTrusted
-                        ? "GridWindowManager can now move the focused window."
-                        : "macOS requires Accessibility permission before an app can move or resize another app’s window. GridWindowManager does not read window titles, documents, general typing, or screen contents."
+                        ? "GridWindowManager can now move and arrange standard windows."
+                        : "Open Privacy & Security. Choose Device Control and Data Access on this macOS version, or Accessibility on earlier versions. Enable GridWindowManager.app itself, not a Tests-Runner app, then return. This window closes when macOS confirms access. GridWindowManager does not read window titles, documents, general typing, or screen contents."
                 )
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -36,15 +37,15 @@ struct PermissionView: View
                 }
                 else
                 {
-                    Button("Not Now", action: close)
-                    Spacer()
-                    Button("Open System Settings")
+                    Button("Not Now")
                     {
-                        authorization.openSystemSettings()
+                        authorization.stopPolling()
+                        close()
                     }
-                    Button("Allow Accessibility")
+                    Spacer()
+                    Button("Open Privacy & Security")
                     {
-                        authorization.requestAuthorization()
+                        authorization.requestAuthorizationInSystemSettings()
                     }
                     .keyboardShortcut(.defaultAction)
                 }
@@ -52,6 +53,15 @@ struct PermissionView: View
         }
         .padding(28)
         .frame(width: 500)
+        .onAppear
+        {
+            authorization.startMonitoring()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification))
+        {
+            _ in
+            authorization.refresh()
+        }
         .onChange(of: authorization.isTrusted)
         {
             _, trusted in
@@ -62,6 +72,10 @@ struct PermissionView: View
                     close()
                 }
             }
+        }
+        .onDisappear
+        {
+            authorization.stopPolling()
         }
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import XCTest
 
@@ -14,6 +15,7 @@ final class LiveAccessibilityUITests: XCTestCase
         let fixture = XCUIApplication(
             bundleIdentifier: "com.ideasbyrobert.GridWindowManager.WindowFixtureApp"
         )
+        fixture.launchArguments = ["--ui-testing-open-all-windows"]
         fixture.launch()
         defer
         {
@@ -22,7 +24,11 @@ final class LiveAccessibilityUITests: XCTestCase
         }
 
         let fixtureWindow = fixture.windows.firstMatch
-        XCTAssertTrue(fixtureWindow.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntil(timeout: 5)
+        {
+            fixture.windows.count == 4
+        })
+        XCTAssertTrue(fixtureWindow.exists)
         fixture.activate()
         let originalFrame = fixtureWindow.frame
 
@@ -32,9 +38,9 @@ final class LiveAccessibilityUITests: XCTestCase
             "--ui-testing-live-arrange-and-restore"
         ]
         manager.launch()
-        if manager.staticTexts["Allow Window Arrangement"].waitForExistence(timeout: 1)
+        if manager.staticTexts["Allow Window Control"].waitForExistence(timeout: 1)
         {
-            throw XCTSkip("The GridWindowManager app is not authorized for Accessibility.")
+            throw XCTSkip("GridWindowManager.app does not have Window Control permission.")
         }
 
         XCTAssertTrue(waitUntil(timeout: 5)
@@ -47,6 +53,74 @@ final class LiveAccessibilityUITests: XCTestCase
         XCTAssertTrue(waitUntil(timeout: 5)
         {
             approximatelyEqual(fixtureWindow.frame, originalFrame, tolerance: 4)
+        })
+    }
+
+    func testRealAppTransfersAndRestoresEveryFixtureWindow() throws
+    {
+        try XCTSkipUnless(
+            Self.liveModeEnabled,
+            "Run with --live-app-accessibility to move fixture windows."
+        )
+        try XCTSkipUnless(
+            NSScreen.screens.count > 1,
+            "Connect a second display to test whole-app display transfer."
+        )
+        let manager = XCUIApplication()
+        let fixture = XCUIApplication(
+            bundleIdentifier: "com.ideasbyrobert.GridWindowManager.WindowFixtureApp"
+        )
+        fixture.launchArguments = ["--ui-testing-open-all-windows"]
+        fixture.launch()
+        defer
+        {
+            fixture.terminate()
+            manager.terminate()
+        }
+        XCTAssertTrue(waitUntil(timeout: 5)
+        {
+            fixture.windows.count == 4
+        })
+        fixture.activate()
+        let originalFrames = windowFrames(in: fixture)
+
+        manager.launchArguments =
+        [
+            "--ui-testing-live-target-bundle-identifier=com.ideasbyrobert.GridWindowManager.WindowFixtureApp",
+            "--ui-testing-live-display-transfer-and-restore"
+        ]
+        manager.launch()
+        if manager.staticTexts["Allow Window Control"].waitForExistence(timeout: 1)
+        {
+            throw XCTSkip("GridWindowManager.app does not have Window Control permission.")
+        }
+
+        XCTAssertTrue(waitUntil(timeout: 5)
+        {
+            let transferredFrames = windowFrames(in: fixture)
+            return originalFrames.keys.allSatisfy
+            {
+                title in
+                guard let originalFrame = originalFrames[title],
+                      let transferredFrame = transferredFrames[title]
+                else
+                {
+                    return false
+                }
+                return !approximatelyEqual(
+                    transferredFrame,
+                    originalFrame,
+                    tolerance: 4
+                )
+            }
+        })
+        XCTAssertTrue(waitUntil(timeout: 5)
+        {
+            approximatelyEqual(
+                windowFrames(in: fixture),
+                originalFrames,
+                tolerance: 4
+            )
         })
     }
 
@@ -77,6 +151,33 @@ final class LiveAccessibilityUITests: XCTestCase
             && abs(first.minY - second.minY) <= tolerance
             && abs(first.width - second.width) <= tolerance
             && abs(first.height - second.height) <= tolerance
+    }
+
+    private func windowFrames(in application: XCUIApplication) -> [String: CGRect]
+    {
+        Dictionary(uniqueKeysWithValues: application.windows.allElementsBoundByIndex.map
+        {
+            ($0.label, $0.frame)
+        })
+    }
+
+    private func approximatelyEqual(
+        _ first: [String: CGRect],
+        _ second: [String: CGRect],
+        tolerance: CGFloat
+    ) -> Bool
+    {
+        Set(first.keys) == Set(second.keys)
+            && first.allSatisfy
+            {
+                title, frame in
+                guard let otherFrame = second[title]
+                else
+                {
+                    return false
+                }
+                return approximatelyEqual(frame, otherFrame, tolerance: tolerance)
+            }
     }
 
     private static var liveModeEnabled: Bool

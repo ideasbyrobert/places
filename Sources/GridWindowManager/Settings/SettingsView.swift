@@ -14,6 +14,6 @@ struct SettingsView: View
                     Label("General", systemImage: "gearshape")
                 }
         }
-        .frame(width: 540, height: 520)
+        .frame(width: 540, height: 580)
     }
 }

@@ -22,6 +22,10 @@ final class EdgeSnapService
     private var isMouseDown = false
     private var isRefreshing = false
     private var didMoveWindow = false
+    private var dragScreens: [ScreenSnapshot] = []
+    private var lastRefreshInstant: ContinuousClock.Instant?
+    private var refreshTask: Task<Void, Never>?
+    private var refreshIdentifier = UUID()
 
     init(
         preferences: AppPreferences,
@@ -86,6 +90,7 @@ final class EdgeSnapService
             return
         }
         isMouseDown = true
+        dragScreens = displayProvider.snapshots()
         let identifier = UUID()
         captureIdentifier = identifier
         let converter = currentConverter()
@@ -137,7 +142,10 @@ final class EdgeSnapService
         }
         isRefreshing = true
         let converter = currentConverter()
-        Task
+        let earliestRefresh = lastRefreshInstant?.advanced(by: .milliseconds(33))
+        let identifier = UUID()
+        refreshIdentifier = identifier
+        refreshTask = Task
         {
             [weak self] in
             guard let self
@@ -145,15 +153,27 @@ final class EdgeSnapService
             {
                 return
             }
+            if let earliestRefresh
+            {
+                try? await ContinuousClock().sleep(until: earliestRefresh)
+            }
+            guard !Task.isCancelled,
+                  refreshIdentifier == identifier
+            else
+            {
+                completeRefresh(identifier: identifier)
+                return
+            }
             let result = await windowManager.snapshot(
                 for: trackedWindow.token,
                 converter: converter
             )
             guard isMouseDown,
-                  self.trackedWindow?.token == trackedWindow.token
+                  self.trackedWindow?.token == trackedWindow.token,
+                  refreshIdentifier == identifier
             else
             {
-                isRefreshing = false
+                completeRefresh(identifier: identifier)
                 return
             }
             if case .captured(let window) = result
@@ -168,7 +188,8 @@ final class EdgeSnapService
             }
             let location = pendingLocation
             pendingLocation = nil
-            isRefreshing = false
+            lastRefreshInstant = ContinuousClock.now
+            completeRefresh(identifier: identifier)
             if let location
             {
                 updateCandidate(at: location)
@@ -186,17 +207,25 @@ final class EdgeSnapService
               let latestWindow,
               let screen = displayProvider.screen(
                   containing: location,
-                  in: displayProvider.snapshots()
+                  in: dragScreens
               ),
               let zone = resolver.zone(at: location, on: screen, threshold: 24)
         else
         {
-            candidate = nil
-            footprintController.hide()
+            if candidate != nil
+            {
+                candidate = nil
+                footprintController.hide()
+            }
             return
         }
-        let candidate = EdgeSnapCandidate(zone: zone, screen: screen)
-        self.candidate = candidate
+        let nextCandidate = EdgeSnapCandidate(zone: zone, screen: screen)
+        guard candidate != nextCandidate
+        else
+        {
+            return
+        }
+        candidate = nextCandidate
         guard preferences.showsPreview
         else
         {
@@ -231,6 +260,7 @@ final class EdgeSnapService
         let converter = currentConverter()
         let spacing = preferences.spacing
         let hadVerifiedMovement = didMoveWindow
+        let screens = dragScreens
         reset()
         Task
         {
@@ -255,7 +285,7 @@ final class EdgeSnapService
             guard hadVerifiedMovement || hypot(deltaX, deltaY) >= 4,
                   let screen = displayProvider.screen(
                       containing: location,
-                      in: displayProvider.snapshots()
+                      in: screens
                   ),
                   let zone = resolver.zone(at: location, on: screen, threshold: 24)
             else
@@ -290,7 +320,23 @@ final class EdgeSnapService
         isMouseDown = false
         isRefreshing = false
         didMoveWindow = false
+        dragScreens = []
+        lastRefreshInstant = nil
+        refreshIdentifier = UUID()
+        refreshTask?.cancel()
+        refreshTask = nil
         footprintController.hide()
+    }
+
+    private func completeRefresh(identifier: UUID)
+    {
+        guard refreshIdentifier == identifier
+        else
+        {
+            return
+        }
+        isRefreshing = false
+        refreshTask = nil
     }
 
     private func currentConverter() -> ScreenCoordinateConverter

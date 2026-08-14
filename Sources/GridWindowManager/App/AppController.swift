@@ -16,6 +16,8 @@ final class AppController: ObservableObject
     let preferences = AppPreferences.shared
     let authorization = AccessibilityAuthorizationService()
     let launchAtLogin = LaunchAtLoginService()
+    let terminalWindowSizing = TerminalWindowSizingService()
+    let desktopVisibility = DesktopVisibilityService()
 
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.ideasbyrobert.GridWindowManager",
@@ -25,13 +27,23 @@ final class AppController: ObservableObject
     private let displayProvider = DisplaySnapshotProvider()
     private let calculator: any LayoutCalculating = GridLayoutCalculator()
     private let transferCalculator = DisplayTransferCalculator()
-    private let fourByTwoBatchLayout = FourByTwoBatchLayout()
     private let windowManager: any WindowManaging = AccessibilityWindowActor()
     private let hotKeyService = HotKeyService()
     private let savedAppLayoutStore = SavedAppLayoutStore()
     private lazy var paletteController = PaletteController(
         calculator: calculator,
         preferences: preferences
+    )
+    private lazy var balancedWindowArrangementService = BalancedWindowArrangementService(
+        windowManager: windowManager,
+        terminalWindowSizing: terminalWindowSizing,
+        calculator: calculator
+    )
+    private lazy var displayWindowManagementService = DisplayWindowManagementService(
+        windowManager: windowManager,
+        displayProvider: displayProvider,
+        calculator: calculator,
+        transferCalculator: transferCalculator
     )
     private lazy var permissionWindowController = PermissionWindowController(
         authorization: authorization
@@ -50,6 +62,9 @@ final class AppController: ObservableObject
     )
     private var isStarted = false
     private var availabilityRequestIdentifier = UUID()
+    private var availabilityTask: Task<Void, Never>?
+    private var availabilityProcessIdentifier: pid_t?
+    private var availabilityRefreshInstant: ContinuousClock.Instant?
 
     private init()
     {
@@ -96,9 +111,21 @@ final class AppController: ObservableObject
             }
         }
 
+        if isLiveDisplayTransferUITesting
+        {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8)
+            {
+                self.moveAppWindowsToNextDisplay()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3)
+            {
+                self.restorePreviousFrame()
+            }
+        }
+
         if isPaletteUITesting
         {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5)
+            DispatchQueue.main.async
             {
                 self.presentUITestPalette()
             }
@@ -246,49 +273,109 @@ final class AppController: ObservableObject
 
     func refreshBatchArrangementAvailability()
     {
-        let requestIdentifier = UUID()
-        availabilityRequestIdentifier = requestIdentifier
-        batchArrangementAvailability = .checking
         if let batchWindowCountOverride
         {
-            batchArrangementAvailability = availability(
+            let updatedAvailability = availability(
                 forWindowCount: batchWindowCountOverride
             )
+            if batchArrangementAvailability != updatedAvailability
+            {
+                batchArrangementAvailability = updatedAvailability
+            }
             return
         }
         authorization.refresh()
         guard authorization.isTrusted
         else
         {
-            batchArrangementAvailability = .unavailable(.accessibilityPermissionRequired)
+            cancelAvailabilityRefresh()
+            let updatedAvailability = BatchArrangementAvailability.unavailable(
+                .accessibilityPermissionRequired
+            )
+            if batchArrangementAvailability != updatedAvailability
+            {
+                batchArrangementAvailability = updatedAvailability
+            }
             return
         }
         guard let processIdentifier = tracker.processIdentifier
         else
         {
-            batchArrangementAvailability = .unavailable(.noTargetApplication)
+            cancelAvailabilityRefresh()
+            let updatedAvailability = BatchArrangementAvailability.unavailable(
+                .noTargetApplication
+            )
+            if batchArrangementAvailability != updatedAvailability
+            {
+                batchArrangementAvailability = updatedAvailability
+            }
             return
         }
-        let converter = currentConverter()
-        Task
+        let now = ContinuousClock.now
+        if availabilityProcessIdentifier == processIdentifier,
+           availabilityTask != nil
         {
-            [self] in
-            let result = await windowManager.captureStandardWindows(
-                processIdentifier: processIdentifier,
-                converter: converter
-            )
-            guard availabilityRequestIdentifier == requestIdentifier
+            return
+        }
+        if availabilityProcessIdentifier == processIdentifier,
+           let availabilityRefreshInstant,
+           now - availabilityRefreshInstant < .seconds(1)
+        {
+            return
+        }
+        cancelAvailabilityRefresh()
+        let requestIdentifier = UUID()
+        availabilityRequestIdentifier = requestIdentifier
+        if availabilityProcessIdentifier != processIdentifier
+        {
+            batchArrangementAvailability = .checking
+        }
+        availabilityProcessIdentifier = processIdentifier
+        let converter = currentConverter()
+        availabilityTask = Task
+        {
+            [weak self] in
+            guard let self
             else
             {
                 return
             }
-            batchArrangementAvailability = availability(for: result)
+            defer
+            {
+                if availabilityRequestIdentifier == requestIdentifier
+                {
+                    availabilityTask = nil
+                }
+            }
+            guard !Task.isCancelled,
+                  availabilityRequestIdentifier == requestIdentifier
+            else
+            {
+                return
+            }
+            let result = await windowManager.captureStandardWindows(
+                processIdentifier: processIdentifier,
+                converter: converter
+            )
+            guard !Task.isCancelled,
+                  availabilityRequestIdentifier == requestIdentifier
+            else
+            {
+                return
+            }
+            availabilityRefreshInstant = ContinuousClock.now
+            let updatedAvailability = availability(for: result)
+            if batchArrangementAvailability != updatedAvailability
+            {
+                batchArrangementAvailability = updatedAvailability
+            }
         }
     }
 
     func arrangeAllWindowsFourByTwo()
     {
         let requestIdentifier = UUID()
+        cancelAvailabilityRefresh()
         availabilityRequestIdentifier = requestIdentifier
         batchArrangementAvailability = .checking
         authorization.refresh()
@@ -301,7 +388,8 @@ final class AppController: ObservableObject
             showPermissionWindow()
             return
         }
-        guard let processIdentifier = tracker.processIdentifier
+        guard let processIdentifier = tracker.processIdentifier,
+              let bundleIdentifier = targetBundleIdentifier
         else
         {
             let failure = MoveFailure.noTargetApplication
@@ -313,8 +401,26 @@ final class AppController: ObservableObject
         Task
         {
             [self] in
-            let result = await windowManager.captureStandardWindows(
+            let focusedResult = await windowManager.captureFocusedWindow(
                 processIdentifier: processIdentifier,
+                converter: converter
+            )
+            guard case .captured(let focusedWindow) = focusedResult,
+                  let screen = currentScreen(for: focusedWindow)
+            else
+            {
+                if case .failed(let failure) = focusedResult
+                {
+                    batchArrangementAvailability = .unavailable(failure)
+                    statusMessage = failure.message
+                }
+                return
+            }
+            let result = await balancedWindowArrangementService.arrange(
+                processIdentifier: processIdentifier,
+                bundleIdentifier: bundleIdentifier,
+                targetScreen: screen,
+                spacing: preferences.spacing,
                 converter: converter
             )
             guard availabilityRequestIdentifier == requestIdentifier
@@ -322,90 +428,7 @@ final class AppController: ObservableObject
             {
                 return
             }
-            var windows: [ManagedWindowSnapshot]
-            switch result
-            {
-            case .success(let capturedWindows):
-                windows = capturedWindows
-            case .failure(let failure):
-                batchArrangementAvailability = .unavailable(failure)
-                statusMessage = failure.message
-                return
-            }
-            guard let regions = fourByTwoBatchLayout.regions(forWindowCount: windows.count)
-            else
-            {
-                batchArrangementAvailability = availability(forWindowCount: windows.count)
-                statusMessage = windows.count > FourByTwoBatchLayout.capacity
-                    ? "Maximum: 8 windows."
-                    : "No manageable windows."
-                return
-            }
-            let focusedCapture = await windowManager.captureFocusedWindow(
-                processIdentifier: processIdentifier,
-                converter: converter
-            )
-            if case .captured(let focusedWindow) = focusedCapture,
-               let focusedIndex = windows.firstIndex(where:
-               {
-                   $0.token == focusedWindow.token
-               })
-            {
-                windows.remove(at: focusedIndex)
-                windows.insert(focusedWindow, at: 0)
-            }
-            guard let screen = currentScreen(for: windows[0])
-            else
-            {
-                return
-            }
-
-            var arrangedWindowCount = 0
-            var usedBestEffort = false
-            var firstFailure: MoveFailure?
-            for (window, region) in zip(windows, regions)
-            {
-                let command = LayoutCommand.grid(region)
-                let target = calculator.target(
-                    for: command,
-                    on: screen,
-                    currentWindowFrame: window.frame,
-                    spacing: preferences.spacing
-                )
-                let moveResult = await windowManager.apply(
-                    target: target,
-                    to: window.token,
-                    converter: converter,
-                    command: command
-                )
-                switch moveResult
-                {
-                case .moved:
-                    arrangedWindowCount += 1
-                case .bestEffort:
-                    arrangedWindowCount += 1
-                    usedBestEffort = true
-                case .failed(let failure):
-                    firstFailure = firstFailure ?? failure
-                }
-            }
-
-            batchArrangementAvailability = .available(windowCount: windows.count)
-            if let firstFailure
-            {
-                logger.error(
-                    "Batch arrangement moved \(arrangedWindowCount, privacy: .public) of \(windows.count, privacy: .public) windows: \(firstFailure.message, privacy: .public)"
-                )
-                statusMessage = "Arranged \(arrangedWindowCount) of \(windows.count) windows."
-            }
-            else if usedBestEffort
-            {
-                statusMessage = "Arranged \(windows.count) with size limits."
-            }
-            else
-            {
-                statusMessage = "Arranged \(windows.count) windows in 4 × 2."
-            }
+            handle(result)
         }
     }
 
@@ -492,7 +515,7 @@ final class AppController: ObservableObject
             )
             savedAppLayoutStore.save(layout)
             refreshSavedLayoutSlots()
-            statusMessage = "Saved (windows.count) window positions in slot (slot)."
+            statusMessage = "Saved \(windows.count) window positions in slot \(slot)."
         }
     }
 
@@ -514,7 +537,7 @@ final class AppController: ObservableObject
               )
         else
         {
-            statusMessage = "No saved layout is available in slot (slot) for this app."
+            statusMessage = "No saved layout is available in slot \(slot) for this app."
             return
         }
         let converter = currentConverter()
@@ -559,42 +582,32 @@ final class AppController: ObservableObject
             guard windows.count == layout.windowFrames.count
             else
             {
-                statusMessage = "Slot (slot) expects (layout.windowFrames.count) windows; this display has (windows.count)."
+                statusMessage = "Slot \(slot) expects \(layout.windowFrames.count) windows; this display has \(windows.count)."
                 return
             }
-            var restoredCount = 0
-            var usedBestEffort = false
-            var firstFailure: MoveFailure?
-            for (window, savedFrame) in zip(windows, layout.windowFrames)
+            let requests = zip(windows, layout.windowFrames).map
             {
-                let result = await windowManager.apply(
+                window, savedFrame in
+                WindowPlacementRequest(
+                    token: window.token,
                     target: savedFrame.target(on: screen),
-                    to: window.token,
-                    converter: converter,
+                    historyPreviousFrame: window.frame,
                     command: nil
                 )
-                switch result
-                {
-                case .moved:
-                    restoredCount += 1
-                case .bestEffort:
-                    restoredCount += 1
-                    usedBestEffort = true
-                case .failed(let failure):
-                    firstFailure = firstFailure ?? failure
-                }
             }
-            if firstFailure != nil
+            let result = await windowManager.applyBatch(
+                requests,
+                terminalState: nil,
+                converter: converter
+            )
+            switch result
             {
-                statusMessage = "Restored (restoredCount) of (windows.count) windows from slot (slot)."
-            }
-            else if usedBestEffort
-            {
-                statusMessage = "Restored slot (slot) with window size limits."
-            }
-            else
-            {
-                statusMessage = "Restored (windows.count) windows from slot (slot)."
+            case .moved:
+                statusMessage = "Restored \(windows.count) windows from slot \(slot)."
+            case .bestEffort:
+                statusMessage = "Restored slot \(slot) with window size limits."
+            case .failed(let failure):
+                statusMessage = failure.message
             }
         }
     }
@@ -609,7 +622,7 @@ final class AppController: ObservableObject
         }
         savedAppLayoutStore.remove(bundleIdentifier: bundleIdentifier, slot: slot)
         refreshSavedLayoutSlots()
-        statusMessage = "Deleted saved layout slot (slot)."
+        statusMessage = "Deleted saved layout slot \(slot)."
     }
 
     func moveToPreviousDisplay()
@@ -622,11 +635,36 @@ final class AppController: ObservableObject
         moveToDisplay(.next)
     }
 
+    func gatherAppWindowsOnFocusedDisplay()
+    {
+        moveAppWindows(to: nil)
+    }
+
+    func moveAppWindowsToPreviousDisplay()
+    {
+        moveAppWindows(to: .previous)
+    }
+
+    func moveAppWindowsToNextDisplay()
+    {
+        moveAppWindows(to: .next)
+    }
+
+    func showOrRestoreDesktop()
+    {
+        let result = desktopVisibility.isDesktopShown
+            ? desktopVisibility.restoreDesktop()
+            : desktopVisibility.showDesktop()
+        handle(result)
+    }
+
     func undoLastMove()
     {
         Task
         {
-            let result = await windowManager.undoLast(converter: currentConverter())
+            let result = await balancedWindowArrangementService.restorePrevious(
+                converter: currentConverter()
+            )
             handle(result)
         }
     }
@@ -724,6 +762,81 @@ final class AppController: ObservableObject
                 to: snapshot.token,
                 converter: currentConverter(),
                 command: command
+            )
+            handle(result)
+        }
+    }
+
+    private func moveAppWindows(to direction: DisplayDirection?)
+    {
+        authorization.refresh()
+        guard authorization.isTrusted
+        else
+        {
+            statusMessage = MoveFailure.accessibilityPermissionRequired.message
+            showPermissionWindow()
+            return
+        }
+        guard let processIdentifier = tracker.processIdentifier
+        else
+        {
+            statusMessage = MoveFailure.noTargetApplication.message
+            return
+        }
+        let converter = currentConverter()
+        Task
+        {
+            [self] in
+            let focusedCapture = await windowManager.captureFocusedWindow(
+                processIdentifier: processIdentifier,
+                converter: converter
+            )
+            guard case .captured(let focusedWindow) = focusedCapture
+            else
+            {
+                if case .failed(let failure) = focusedCapture
+                {
+                    statusMessage = failure.message
+                }
+                return
+            }
+            let screens = displayProvider.snapshots()
+            guard let focusedScreen = displayProvider.screen(
+                containing: focusedWindow.frame,
+                in: screens
+            )
+            else
+            {
+                statusMessage = MoveFailure.noDisplays.message
+                return
+            }
+            let destination: ScreenSnapshot
+            if let direction
+            {
+                guard let adjacentScreen = displayProvider.adjacent(
+                    to: focusedScreen,
+                    direction: direction,
+                    in: screens
+                )
+                else
+                {
+                    statusMessage = screens.count < 2
+                        ? "No other display is connected."
+                        : MoveFailure.noDisplays.message
+                    return
+                }
+                destination = adjacentScreen
+            }
+            else
+            {
+                destination = focusedScreen
+            }
+            let result = await displayWindowManagementService.moveAppWindows(
+                processIdentifier: processIdentifier,
+                to: destination,
+                screens: screens,
+                spacing: preferences.spacing,
+                converter: converter
             )
             handle(result)
         }
@@ -850,6 +963,13 @@ final class AppController: ObservableObject
         )
     }
 
+    private func cancelAvailabilityRefresh()
+    {
+        availabilityTask?.cancel()
+        availabilityTask = nil
+        availabilityRequestIdentifier = UUID()
+    }
+
     private func availability(
         for result: Result<[ManagedWindowSnapshot], MoveFailure>
     ) -> BatchArrangementAvailability
@@ -873,7 +993,7 @@ final class AppController: ObservableObject
         {
             return .unavailableNoWindows
         }
-        if windowCount > FourByTwoBatchLayout.capacity
+        if windowCount > BalancedFourByTwoLayout.capacity
         {
             return .unavailableTooMany(windowCount: windowCount)
         }
@@ -890,6 +1010,78 @@ final class AppController: ObservableObject
             statusMessage = "The app applied the closest size this window permits."
         case .failed(let failure):
             statusMessage = failure.message
+        }
+    }
+
+    private func handle(_ result: WindowArrangementResult)
+    {
+        switch result
+        {
+        case .arranged(let windowCount, let usedBestEffort, let terminalSized):
+            batchArrangementAvailability = .available(windowCount: windowCount)
+            if terminalSized
+            {
+                statusMessage = usedBestEffort
+                    ? "Arranged \(windowCount) Terminal windows at 80 × 48 with position limits."
+                    : "Arranged \(windowCount) Terminal windows at 80 × 48."
+            }
+            else
+            {
+                statusMessage = usedBestEffort
+                    ? "Arranged \(windowCount) windows with size limits."
+                    : "Arranged \(windowCount) windows in a balanced 4 × 2 layout."
+            }
+        case .restored(let windowCount, let usedBestEffort):
+            statusMessage = usedBestEffort
+                ? "Restored \(windowCount) windows with size limits."
+                : "Restored \(windowCount) windows."
+        case .failed(let failure):
+            statusMessage = failure.message
+            switch failure
+            {
+            case .noWindows:
+                batchArrangementAvailability = .unavailableNoWindows
+            case .tooManyWindows(let windowCount):
+                batchArrangementAvailability = .unavailableTooMany(
+                    windowCount: windowCount
+                )
+            case .move(let moveFailure):
+                batchArrangementAvailability = .unavailable(moveFailure)
+            default:
+                break
+            }
+        }
+    }
+
+    private func handle(_ result: DisplayWindowManagementResult)
+    {
+        switch result
+        {
+        case .moved(let windowCount, let usedBestEffort):
+            statusMessage = usedBestEffort
+                ? "Moved \(windowCount) app windows with size limits."
+                : "Moved \(windowCount) app windows to the display."
+        case .alreadyOnDisplay:
+            statusMessage = "All app windows are already on that display."
+        case .failed(let failure):
+            statusMessage = failure.message
+        }
+    }
+
+    private func handle(_ result: DesktopVisibilityResult)
+    {
+        switch result
+        {
+        case .shown(let hiddenApplicationCount):
+            statusMessage = "Showed the desktop by hiding \(hiddenApplicationCount) applications."
+        case .restored(let applicationCount):
+            statusMessage = "Restored \(applicationCount) applications."
+        case .alreadyShown:
+            statusMessage = "The desktop is already shown."
+        case .nothingToRestore:
+            statusMessage = "There is no desktop visibility state to restore."
+        case .failed(let message):
+            statusMessage = message
         }
     }
 
@@ -944,6 +1136,13 @@ final class AppController: ObservableObject
     {
         ProcessInfo.processInfo.arguments.contains(
             "--ui-testing-live-arrange-and-restore"
+        )
+    }
+
+    private var isLiveDisplayTransferUITesting: Bool
+    {
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-live-display-transfer-and-restore"
         )
     }
 

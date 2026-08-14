@@ -1,8 +1,14 @@
+import AppKit
 import SwiftUI
 
 @main
 struct WindowFixtureApp: App
 {
+    init()
+    {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     var body: some Scene
     {
         WindowGroup("Window Fixtures", id: "controls")

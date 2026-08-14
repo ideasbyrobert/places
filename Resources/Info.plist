@@ -20,7 +20,11 @@
 	<string>1</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
+	<key>LSMultipleInstancesProhibited</key>
+	<true/>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>GridWindowManager uses Terminal Automation only to set the selected tab in each Terminal window to 80 columns by 48 rows when you choose Arrange App Windows 4 × 2.</string>
 </dict>
 </plist>

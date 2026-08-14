@@ -9,6 +9,7 @@ final class AccessibilityAuthorizationService: ObservableObject
     @Published private(set) var isTrusted = AXIsProcessTrusted()
 
     private var timer: Timer?
+    private var pollingAttempt = 0
 
     func refresh()
     {
@@ -20,17 +21,30 @@ final class AccessibilityAuthorizationService: ObservableObject
         }
     }
 
-    func requestAuthorization()
+    func requestAuthorizationInSystemSettings()
     {
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         isTrusted = AXIsProcessTrustedWithOptions(options)
-        beginPolling()
+        startMonitoring()
+        if !isTrusted
+        {
+            openSystemSettings()
+        }
+    }
+
+    func startMonitoring()
+    {
+        refresh()
+        if !isTrusted
+        {
+            beginPolling()
+        }
     }
 
     func openSystemSettings()
     {
         guard let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
         )
         else
         {
@@ -39,16 +53,33 @@ final class AccessibilityAuthorizationService: ObservableObject
         NSWorkspace.shared.open(url)
     }
 
-    private func beginPolling()
+    func stopPolling()
     {
         timer?.invalidate()
+        timer = nil
+        pollingAttempt = 0
+    }
+
+    private func beginPolling()
+    {
+        stopPolling()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true)
         {
             [weak self] _ in
             Task
             {
                 @MainActor in
-                self?.refresh()
+                guard let self
+                else
+                {
+                    return
+                }
+                self.pollingAttempt += 1
+                self.refresh()
+                if self.pollingAttempt >= 240
+                {
+                    self.stopPolling()
+                }
             }
         }
     }

@@ -39,7 +39,7 @@ enum BatchArrangementAvailability: Equatable, Sendable
         switch failure
         {
         case .accessibilityPermissionRequired:
-            return "Accessibility required"
+            return "Window Control required"
         case .minimizedWindow:
             return "Restore minimized windows"
         case .fullScreenWindow:

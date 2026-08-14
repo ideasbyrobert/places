@@ -8,6 +8,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/.build/DerivedData"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+DEVELOPMENT_TEAM_IDENTIFIER="${GRIDWINDOWMANAGER_DEVELOPMENT_TEAM:-X87D35HM5V}"
+DEVELOPMENT_SIGNING_IDENTITY="${GRIDWINDOWMANAGER_DEVELOPMENT_IDENTITY:-Apple Development}"
 
 build_app()
 {
@@ -18,13 +20,16 @@ build_app()
         -scheme "$APP_NAME" \
         -configuration Debug \
         -derivedDataPath "$DERIVED_DATA" \
-        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_ALLOWED=YES \
+        CODE_SIGN_STYLE=Manual \
+        CODE_SIGN_IDENTITY="$DEVELOPMENT_SIGNING_IDENTITY" \
+        DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_IDENTIFIER" \
         build
 }
 
 open_app()
 {
-    /usr/bin/open -n "$APP_BUNDLE"
+    /usr/bin/open "$APP_BUNDLE"
 }
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true

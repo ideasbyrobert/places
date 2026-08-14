@@ -12,6 +12,7 @@ settings:
     ARCHS: "$(ARCHS_STANDARD)"
     CLANG_ENABLE_MODULES: YES
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: X87D35HM5V
     ENABLE_HARDENED_RUNTIME: YES
     MACOSX_DEPLOYMENT_TARGET: "15.0"
     SWIFT_STRICT_CONCURRENCY: complete
@@ -22,15 +23,22 @@ targets:
     platform: macOS
     sources:
       - path: Sources/GridWindowManager
+      - path: Resources/GridWindowManager.icon
+        buildPhase: resources
     info:
       path: Resources/Info.plist
       properties:
         LSApplicationCategoryType: public.app-category.utilities
+        LSMultipleInstancesProhibited: true
         LSUIElement: true
+        NSAppleEventsUsageDescription: GridWindowManager uses Terminal Automation only to set the selected tab in each Terminal window to 80 columns by 48 rows when you choose Arrange App Windows 4 × 2.
     entitlements:
       path: Resources/GridWindowManager.entitlements
+      properties:
+        com.apple.security.automation.apple-events: true
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: GridWindowManager
         COMBINE_HIDPI_IMAGES: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManager
         PRODUCT_NAME: GridWindowManager
@@ -56,6 +64,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: GridWindowManager tests automate disposable Terminal windows only during the explicit live Terminal test.
         PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManagerTests
   GridWindowManagerUITests:
     type: bundle.ui-testing

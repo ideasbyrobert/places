@@ -10,7 +10,7 @@ actor AccessibilityWindowActor: WindowManaging
         category: "Windowing"
     )
     private var records: [UUID: AccessibilityWindowRecord] = [:]
-    private var history: [MoveHistoryEntry] = []
+    private var history: [WindowArrangementTransaction] = []
     private var lastCommands: [UUID: LayoutCommand] = [:]
 
     func captureFocusedWindow(
@@ -221,102 +221,129 @@ actor AccessibilityWindowActor: WindowManaging
         historyPreviousFrame: CGRect?
     ) async -> MoveResult
     {
-        guard let record = records[token.id]
-        else
-        {
-            return .failed(.staleWindow)
-        }
-        if let failure = validationFailure(for: record.element)
-        {
-            return .failed(failure)
-        }
-        guard let previousAccessibilityFrame = frame(of: record.element)
-        else
-        {
-            return .failed(.staleWindow)
-        }
-        let previousFrame = converter.appKitFrame(fromAccessibilityFrame: previousAccessibilityFrame)
-        let historyFrame = historyPreviousFrame ?? previousFrame
-        let isResizable = record.element.isAttributeSettable(kAXSizeAttribute as CFString)
-
-        let initialError = set(
-            appKitFrame: target.frame,
-            on: record.element,
-            converter: converter,
-            resize: isResizable
+        let execution = await move(
+            target: target,
+            token: token,
+            converter: converter
         )
-        if initialError != .success
+        switch execution.result
         {
-            logger.error("Initial window move failed with AX error \(initialError.rawValue, privacy: .public)")
-            return .failed(.accessibilityFailure(initialError.rawValue))
-        }
-
-        guard let firstAccessibilityFrame = frame(of: record.element)
-        else
-        {
-            return .failed(.staleWindow)
-        }
-        let firstFrame = converter.appKitFrame(fromAccessibilityFrame: firstAccessibilityFrame)
-        let alignedFrame = constrainedFrame(firstFrame, target: target)
-        let alignmentError = set(
-            appKitFrame: alignedFrame,
-            on: record.element,
-            converter: converter,
-            resize: isResizable
-        )
-        if alignmentError != .success
-        {
-            logger.error("Aligned window move failed with AX error \(alignmentError.rawValue, privacy: .public)")
-            return .failed(.accessibilityFailure(alignmentError.rawValue))
-        }
-
-        let tolerance = 2 / max(1, target.backingScaleFactor)
-        let expectedFrame = alignedFrame
-        var actualFrame = readAppKitFrame(record.element, converter: converter)
-        if actualFrame.map(
-        {
-            !approximatelyEqual($0, expectedFrame, tolerance: tolerance)
-        }) ?? true
-        {
-            try? await Task.sleep(for: .milliseconds(50))
-            let retryError = set(
-                appKitFrame: expectedFrame,
-                on: record.element,
-                converter: converter,
-                resize: isResizable
-            )
-            if retryError != .success
+        case .moved(let actualFrame), .bestEffort(let actualFrame):
+            guard let previousFrame = execution.previousFrame
+            else
             {
-                logger.error("Window move retry failed with AX error \(retryError.rawValue, privacy: .public)")
-                return .failed(.accessibilityFailure(retryError.rawValue))
+                return .failed(.staleWindow)
             }
-            actualFrame = readAppKitFrame(record.element, converter: converter)
+            appendHistory(
+                changes:
+                [
+                    WindowFrameChange(
+                        token: token,
+                        previousFrame: historyPreviousFrame ?? previousFrame,
+                        managedFrame: actualFrame
+                    )
+                ],
+                terminalState: nil
+            )
+            if let command
+            {
+                lastCommands[token.id] = command
+            }
+            return execution.result
+        case .failed:
+            return execution.result
         }
+    }
 
-        guard let actualFrame
+    func applyBatch(
+        _ requests: [WindowPlacementRequest],
+        terminalState: TerminalArrangementState?,
+        converter: ScreenCoordinateConverter
+    ) async -> MoveResult
+    {
+        guard !requests.isEmpty,
+              Set(requests.map(\.token)).count == requests.count
         else
         {
-            return .failed(.staleWindow)
+            return .failed(.noManageableWindows)
         }
-        history.append(
-            MoveHistoryEntry(
-                token: token,
-                previousFrame: historyFrame,
-                managedFrame: actualFrame
+        var changes: [WindowFrameChange] = []
+        var rollbackStates: [WindowFrameState] = []
+        var usedBestEffort = false
+        let start = ContinuousClock.now
+        for request in requests
+        {
+            let execution = await move(
+                target: request.target,
+                token: request.token,
+                converter: converter
             )
+            switch execution.result
+            {
+            case .moved(let actualFrame):
+                guard let previousFrame = execution.previousFrame
+                else
+                {
+                    if !rollbackStates.isEmpty
+                    {
+                        _ = await restoreFrames(rollbackStates, converter: converter)
+                    }
+                    return .failed(.staleWindow)
+                }
+                rollbackStates.append(WindowFrameState(
+                    token: request.token,
+                    frame: previousFrame
+                ))
+                changes.append(WindowFrameChange(
+                    token: request.token,
+                    previousFrame: request.historyPreviousFrame,
+                    managedFrame: actualFrame
+                ))
+            case .bestEffort(let actualFrame):
+                guard let previousFrame = execution.previousFrame
+                else
+                {
+                    if !rollbackStates.isEmpty
+                    {
+                        _ = await restoreFrames(rollbackStates, converter: converter)
+                    }
+                    return .failed(.staleWindow)
+                }
+                rollbackStates.append(WindowFrameState(
+                    token: request.token,
+                    frame: previousFrame
+                ))
+                usedBestEffort = true
+                changes.append(WindowFrameChange(
+                    token: request.token,
+                    previousFrame: request.historyPreviousFrame,
+                    managedFrame: actualFrame
+                ))
+            case .failed(let failure):
+                if !rollbackStates.isEmpty
+                {
+                    _ = await restoreFrames(rollbackStates, converter: converter)
+                }
+                return .failed(failure)
+            }
+        }
+        appendHistory(changes: changes, terminalState: terminalState)
+        for request in requests
+        {
+            if let command = request.command
+            {
+                lastCommands[request.token.id] = command
+            }
+        }
+        guard let firstFrame = changes.first?.managedFrame
+        else
+        {
+            return .failed(.noManageableWindows)
+        }
+        logger.info(
+            "Applied batch of \(changes.count, privacy: .public) windows in \(start.duration(to: .now), privacy: .public)"
         )
-        if history.count > 50
-        {
-            history.removeFirst(history.count - 50)
-        }
-        if let command
-        {
-            lastCommands[token.id] = command
-        }
-
-        let exact = approximatelyEqual(actualFrame, target.frame, tolerance: tolerance)
-        logger.info("Window move completed with exact target: \(exact, privacy: .public)")
-        return exact ? .moved(actualFrame) : .bestEffort(actualFrame)
+        return usedBestEffort ? .bestEffort(firstFrame) : .moved(firstFrame)
     }
 
     func perform(
@@ -391,15 +418,17 @@ actor AccessibilityWindowActor: WindowManaging
             if let managedFrame = readAppKitFrame(record.element, converter: converter),
                !approximatelyEqual(previousFrame, managedFrame, tolerance: 2)
             {
-                history.append(MoveHistoryEntry(
-                    token: token,
-                    previousFrame: previousFrame,
-                    managedFrame: managedFrame
-                ))
-                if history.count > 50
-                {
-                    history.removeFirst(history.count - 50)
-                }
+                appendHistory(
+                    changes:
+                    [
+                        WindowFrameChange(
+                            token: token,
+                            previousFrame: previousFrame,
+                            managedFrame: managedFrame
+                        )
+                    ],
+                    terminalState: nil
+                )
             }
         }
         logger.info("Window action completed: \(action.title, privacy: .public)")
@@ -408,46 +437,318 @@ actor AccessibilityWindowActor: WindowManaging
 
     func undoLast(converter: ScreenCoordinateConverter) async -> MoveResult
     {
-        while let entry = history.popLast()
+        let preparation = await prepareUndo(converter: converter)
+        switch preparation
         {
-            guard let record = records[entry.token.id],
+        case .success(let transaction):
+            guard transaction.terminalState == nil
+            else
+            {
+                return .failed(.terminalStateRestoreRequired)
+            }
+            return await commitPreparedUndo(
+                transactionIdentifier: transaction.identifier,
+                converter: converter
+            )
+        case .failure(let failure):
+            return .failed(failure)
+        }
+    }
+
+    func prepareUndo(
+        converter: ScreenCoordinateConverter
+    ) async -> Result<WindowArrangementTransaction, MoveFailure>
+    {
+        guard let transaction = history.last
+        else
+        {
+            return .failure(.nothingToUndo)
+        }
+        for change in transaction.changes
+        {
+            guard let record = records[change.token.id],
                   let currentFrame = readAppKitFrame(record.element, converter: converter)
             else
             {
-                continue
+                return .failure(.staleWindow)
             }
-            guard approximatelyEqual(currentFrame, entry.managedFrame, tolerance: 2)
+            guard approximatelyEqual(currentFrame, change.managedFrame, tolerance: 2)
             else
             {
-                return .failed(.windowChanged)
+                return .failure(.windowChanged)
             }
-            let resize = record.element.isAttributeSettable(kAXSizeAttribute as CFString)
-            let error = set(
-                appKitFrame: entry.previousFrame,
-                on: record.element,
-                converter: converter,
-                resize: resize
-            )
-            guard error == .success
-            else
+        }
+        return .success(transaction)
+    }
+
+    func commitPreparedUndo(
+        transactionIdentifier: UUID,
+        converter: ScreenCoordinateConverter
+    ) async -> MoveResult
+    {
+        guard let transaction = history.last,
+              transaction.identifier == transactionIdentifier
+        else
+        {
+            return .failed(.windowChanged)
+        }
+        let result = await restoreFrames(
+            transaction.changes.map
             {
-                return .failed(.accessibilityFailure(error.rawValue))
-            }
-            guard let restoredFrame = readAppKitFrame(record.element, converter: converter)
+                WindowFrameState(token: $0.token, frame: $0.previousFrame)
+            },
+            converter: converter
+        )
+        switch result
+        {
+        case .moved, .bestEffort:
+            history.removeLast()
+        case .failed:
+            break
+        }
+        return result
+    }
+
+    func restoreFrames(
+        _ states: [WindowFrameState],
+        converter: ScreenCoordinateConverter
+    ) async -> MoveResult
+    {
+        guard !states.isEmpty,
+              Set(states.map(\.token)).count == states.count
+        else
+        {
+            return .failed(.noManageableWindows)
+        }
+        let start = ContinuousClock.now
+        var currentStates: [WindowFrameState] = []
+        for state in states
+        {
+            guard let record = records[state.token.id],
+                  let currentFrame = readAppKitFrame(record.element, converter: converter)
             else
             {
                 return .failed(.staleWindow)
             }
-            return approximatelyEqual(restoredFrame, entry.previousFrame, tolerance: 2)
-                ? .moved(restoredFrame)
-                : .bestEffort(restoredFrame)
+            currentStates.append(WindowFrameState(token: state.token, frame: currentFrame))
         }
-        return .failed(.nothingToUndo)
+        var restoredFrames: [CGRect] = []
+        var usedBestEffort = false
+        for state in states
+        {
+            guard let record = records[state.token.id]
+            else
+            {
+                rollback(currentStates, converter: converter)
+                return .failed(.staleWindow)
+            }
+            let resize = record.element.isAttributeSettable(kAXSizeAttribute as CFString)
+            let error = set(
+                appKitFrame: state.frame,
+                on: record.element,
+                converter: converter,
+                resize: resize
+            )
+            guard error == .success,
+                  let restoredFrame = readAppKitFrame(record.element, converter: converter)
+            else
+            {
+                rollback(currentStates, converter: converter)
+                return error == .success
+                    ? .failed(.staleWindow)
+                    : .failed(.accessibilityFailure(error.rawValue))
+            }
+            if !approximatelyEqual(restoredFrame, state.frame, tolerance: 2)
+            {
+                usedBestEffort = true
+            }
+            restoredFrames.append(restoredFrame)
+        }
+        guard let firstFrame = restoredFrames.first
+        else
+        {
+            return .failed(.noManageableWindows)
+        }
+        logger.info(
+            "Restored \(restoredFrames.count, privacy: .public) windows in \(start.duration(to: .now), privacy: .public)"
+        )
+        return usedBestEffort ? .bestEffort(firstFrame) : .moved(firstFrame)
     }
 
     func lastCommand(for token: ManagedWindowToken) async -> LayoutCommand?
     {
         lastCommands[token.id]
+    }
+
+    private func move(
+        target: LayoutTarget,
+        token: ManagedWindowToken,
+        converter: ScreenCoordinateConverter
+    ) async -> (result: MoveResult, previousFrame: CGRect?)
+    {
+        guard let record = records[token.id]
+        else
+        {
+            return (.failed(.staleWindow), nil)
+        }
+        if let failure = validationFailure(for: record.element)
+        {
+            return (.failed(failure), nil)
+        }
+        guard let previousAccessibilityFrame = frame(of: record.element)
+        else
+        {
+            return (.failed(.staleWindow), nil)
+        }
+        let previousFrame = converter.appKitFrame(
+            fromAccessibilityFrame: previousAccessibilityFrame
+        )
+        let isResizable = record.element.isAttributeSettable(kAXSizeAttribute as CFString)
+        let initialError = set(
+            appKitFrame: target.frame,
+            on: record.element,
+            converter: converter,
+            resize: isResizable
+        )
+        if initialError != .success
+        {
+            _ = set(
+                appKitFrame: previousFrame,
+                on: record.element,
+                converter: converter,
+                resize: isResizable
+            )
+            logger.error(
+                "Initial window move failed with AX error \(initialError.rawValue, privacy: .public)"
+            )
+            return (.failed(.accessibilityFailure(initialError.rawValue)), previousFrame)
+        }
+
+        guard let firstAccessibilityFrame = frame(of: record.element)
+        else
+        {
+            _ = set(
+                appKitFrame: previousFrame,
+                on: record.element,
+                converter: converter,
+                resize: isResizable
+            )
+            return (.failed(.staleWindow), previousFrame)
+        }
+        let firstFrame = converter.appKitFrame(
+            fromAccessibilityFrame: firstAccessibilityFrame
+        )
+        let alignedFrame = constrainedFrame(firstFrame, target: target)
+        let alignmentError = set(
+            appKitFrame: alignedFrame,
+            on: record.element,
+            converter: converter,
+            resize: isResizable
+        )
+        if alignmentError != .success
+        {
+            _ = set(
+                appKitFrame: previousFrame,
+                on: record.element,
+                converter: converter,
+                resize: isResizable
+            )
+            logger.error(
+                "Aligned window move failed with AX error \(alignmentError.rawValue, privacy: .public)"
+            )
+            return (.failed(.accessibilityFailure(alignmentError.rawValue)), previousFrame)
+        }
+
+        let tolerance = 2 / max(1, target.backingScaleFactor)
+        let expectedFrame = alignedFrame
+        var actualFrame = readAppKitFrame(record.element, converter: converter)
+        if actualFrame.map(
+        {
+            !approximatelyEqual($0, expectedFrame, tolerance: tolerance)
+        }) ?? true
+        {
+            try? await Task.sleep(for: .milliseconds(50))
+            let retryError = set(
+                appKitFrame: expectedFrame,
+                on: record.element,
+                converter: converter,
+                resize: isResizable
+            )
+            if retryError != .success
+            {
+                _ = set(
+                    appKitFrame: previousFrame,
+                    on: record.element,
+                    converter: converter,
+                    resize: isResizable
+                )
+                logger.error(
+                    "Window move retry failed with AX error \(retryError.rawValue, privacy: .public)"
+                )
+                return (.failed(.accessibilityFailure(retryError.rawValue)), previousFrame)
+            }
+            actualFrame = readAppKitFrame(record.element, converter: converter)
+        }
+
+        guard let actualFrame
+        else
+        {
+            _ = set(
+                appKitFrame: previousFrame,
+                on: record.element,
+                converter: converter,
+                resize: isResizable
+            )
+            return (.failed(.staleWindow), previousFrame)
+        }
+        let exact = approximatelyEqual(actualFrame, target.frame, tolerance: tolerance)
+        logger.info("Window move completed with exact target: \(exact, privacy: .public)")
+        return (
+            exact ? .moved(actualFrame) : .bestEffort(actualFrame),
+            previousFrame
+        )
+    }
+
+    private func appendHistory(
+        changes: [WindowFrameChange],
+        terminalState: TerminalArrangementState?
+    )
+    {
+        guard !changes.isEmpty
+        else
+        {
+            return
+        }
+        history.append(WindowArrangementTransaction(
+            identifier: UUID(),
+            changes: changes,
+            terminalState: terminalState
+        ))
+        if history.count > 50
+        {
+            history.removeFirst(history.count - 50)
+        }
+    }
+
+    private func rollback(
+        _ states: [WindowFrameState],
+        converter: ScreenCoordinateConverter
+    )
+    {
+        for state in states
+        {
+            guard let record = records[state.token.id]
+            else
+            {
+                continue
+            }
+            _ = set(
+                appKitFrame: state.frame,
+                on: record.element,
+                converter: converter,
+                resize: record.element.isAttributeSettable(kAXSizeAttribute as CFString)
+            )
+        }
     }
 
     private func validationFailure(for element: AXUIElement) -> MoveFailure?

@@ -1,0 +1,42 @@
+{
+  "supported-platforms": {
+    "squares": "shared"
+  },
+  "fill": {
+    "linear-gradient": [
+      "srgb:0.18039,0.41961,1.00000,1.00000",
+      "srgb:0.10588,0.23529,0.65098,1.00000"
+    ],
+    "orientation": {
+      "start": {
+        "x": 0.3960441545911203,
+        "y": 0.9890738003669028
+      },
+      "stop": {
+        "x": 0.6039558454088797,
+        "y": 0.010926199633097156
+      }
+    }
+  },
+  "groups": [
+    {
+      "name": "Mark",
+      "specular": true,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      },
+      "layers": [
+        {
+          "image-name": "glyph.svg",
+          "name": "mark",
+          "glass": true
+        }
+      ]
+    }
+  ]
+}

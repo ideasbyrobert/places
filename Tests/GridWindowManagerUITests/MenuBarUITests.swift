@@ -36,6 +36,8 @@ final class MenuBarUITests: XCTestCase
         XCTAssertTrue(application.menuItems["Saved App Layouts"].exists)
         XCTAssertTrue(application.menuItems["Restore Previous Frame"].exists)
         XCTAssertTrue(application.menuItems["Window Actions"].exists)
+        XCTAssertTrue(application.menuItems["Desktop"].exists)
+        XCTAssertTrue(application.menuItems["Displays"].exists)
         application.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
         application.terminate()
     }

@@ -5,6 +5,13 @@ struct PaletteView: View
     static let preferredWidth: CGFloat = 360
 
     @ObservedObject var model: PaletteModel
+    @State private var selectedDimension: GridDimension
+
+    init(model: PaletteModel)
+    {
+        self.model = model
+        _selectedDimension = State(initialValue: model.dimension)
+    }
 
     var body: some View
     {
@@ -15,7 +22,7 @@ struct PaletteView: View
                 Text("Arrange Window")
                     .font(.headline)
                 Spacer()
-                Picker("Grid", selection: dimensionBinding)
+                Picker("Grid", selection: $selectedDimension)
                 {
                     ForEach(GridDimension.allCases, id: \.self)
                     {
@@ -27,6 +34,14 @@ struct PaletteView: View
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .frame(width: 198)
+                .onChange(of: selectedDimension)
+                {
+                    _, dimension in
+                    if model.dimension != dimension
+                    {
+                        model.setDimension(dimension)
+                    }
+                }
             }
 
             LazyVGrid(
@@ -201,20 +216,14 @@ struct PaletteView: View
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .contain)
-    }
-
-    private var dimensionBinding: Binding<GridDimension>
-    {
-        Binding(
-            get:
+        .onChange(of: model.dimension)
+        {
+            _, dimension in
+            if selectedDimension != dimension
             {
-                model.dimension
-            },
-            set:
-            {
-                model.setDimension($0)
+                selectedDimension = dimension
             }
-        )
+        }
     }
 
     private var cells: [GridCell]

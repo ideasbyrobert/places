@@ -6,6 +6,8 @@ struct GeneralSettingsView: View
     @ObservedObject var preferences: AppPreferences
     @ObservedObject var authorization: AccessibilityAuthorizationService
     @ObservedObject var launchAtLogin: LaunchAtLoginService
+    @ObservedObject var terminalWindowSizing: TerminalWindowSizingService
+    @State private var launchAtLoginEnabled: Bool
 
     init(controller: AppController)
     {
@@ -13,6 +15,8 @@ struct GeneralSettingsView: View
         preferences = controller.preferences
         authorization = controller.authorization
         launchAtLogin = controller.launchAtLogin
+        terminalWindowSizing = controller.terminalWindowSizing
+        _launchAtLoginEnabled = State(initialValue: controller.launchAtLogin.isEnabled)
     }
 
     var body: some View
@@ -71,9 +75,9 @@ struct GeneralSettingsView: View
 
             Section("System")
             {
-                Toggle("Launch at login", isOn: launchAtLoginBinding)
+                Toggle("Launch at login", isOn: $launchAtLoginEnabled)
 
-                LabeledContent("Accessibility")
+                LabeledContent("Window Control")
                 {
                     HStack
                     {
@@ -95,6 +99,30 @@ struct GeneralSettingsView: View
                     }
                 }
 
+                LabeledContent("Terminal Automation")
+                {
+                    HStack
+                    {
+                        Text(terminalWindowSizing.authorizationState.title)
+                            .foregroundStyle(terminalAutomationStatusColor)
+                        Button(terminalAutomationButtonTitle)
+                        {
+                            if terminalWindowSizing.authorizationState == .allowed
+                                || terminalWindowSizing.authorizationState == .denied
+                            {
+                                terminalWindowSizing.openSystemSettings()
+                            }
+                            else
+                            {
+                                Task
+                                {
+                                    _ = await terminalWindowSizing.requestAuthorization()
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if let errorMessage = launchAtLogin.errorMessage
                 {
                     Text(errorMessage)
@@ -105,19 +133,47 @@ struct GeneralSettingsView: View
         }
         .formStyle(.grouped)
         .padding(20)
+        .task
+        {
+            launchAtLoginEnabled = launchAtLogin.isEnabled
+            await terminalWindowSizing.refreshAuthorization()
+        }
+        .onChange(of: launchAtLoginEnabled)
+        {
+            _, enabled in
+            guard enabled != launchAtLogin.isEnabled
+            else
+            {
+                return
+            }
+            launchAtLogin.setEnabled(enabled)
+            launchAtLoginEnabled = launchAtLogin.isEnabled
+        }
     }
 
-    private var launchAtLoginBinding: Binding<Bool>
+    private var terminalAutomationButtonTitle: String
     {
-        Binding(
-            get:
-            {
-                launchAtLogin.isEnabled
-            },
-            set:
-            {
-                launchAtLogin.setEnabled($0)
-            }
-        )
+        switch terminalWindowSizing.authorizationState
+        {
+        case .allowed, .denied:
+            return "Open Settings"
+        case .notRequested, .requiresConsent:
+            return "Request"
+        case .unavailable:
+            return "Retry"
+        }
+    }
+
+    private var terminalAutomationStatusColor: Color
+    {
+        switch terminalWindowSizing.authorizationState
+        {
+        case .allowed, .notRequested:
+            return .secondary
+        case .requiresConsent, .unavailable:
+            return .orange
+        case .denied:
+            return .red
+        }
     }
 }
