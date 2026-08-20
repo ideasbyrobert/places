@@ -17,8 +17,16 @@ final class DesktopVisibilityService: ObservableObject
     private var hiddenApplications: [any DesktopApplicationManaging] = []
     private var previouslyFrontmostApplication: (any DesktopApplicationManaging)?
 
+    convenience init()
+    {
+        self.init(
+            workspace: DesktopWorkspaceProvider(),
+            currentProcessIdentifier: ProcessInfo.processInfo.processIdentifier
+        )
+    }
+
     init(
-        workspace: any DesktopWorkspaceProviding = DesktopWorkspaceProvider(),
+        workspace: any DesktopWorkspaceProviding,
         currentProcessIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier
     )
     {

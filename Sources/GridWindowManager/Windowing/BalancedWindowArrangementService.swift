@@ -8,6 +8,7 @@ final class BalancedWindowArrangementService
     private let terminalWindowSizing: any TerminalWindowSizing
     private let calculator: any LayoutCalculating
     private let layout = BalancedFourByTwoLayout()
+    private let threeByTwoLayout = BalancedThreeByTwoLayout()
     private let visualOrder = VisualWindowOrder()
 
     init(
@@ -170,6 +171,7 @@ final class BalancedWindowArrangementService
         let windowSizes = isTerminal
             ? currentWindows.map(\.frame.size)
             : genericWindowSizes(
+                dimension: .fourByTwo,
                 count: currentWindows.count,
                 screen: targetScreen,
                 spacing: spacing
@@ -290,6 +292,121 @@ final class BalancedWindowArrangementService
         }
     }
 
+    func arrangeThreeByTwo(
+        processIdentifier: pid_t,
+        targetScreen: ScreenSnapshot,
+        spacing: CGFloat,
+        converter: ScreenCoordinateConverter
+    ) async -> WindowArrangementResult
+    {
+        let capture = await windowManager.captureStandardWindows(
+            processIdentifier: processIdentifier,
+            converter: converter
+        )
+        guard case .success(let capturedWindows) = capture
+        else
+        {
+            if case .failure(let failure) = capture
+            {
+                return .failed(.move(failure))
+            }
+            return .failed(.noWindows)
+        }
+        guard !capturedWindows.isEmpty
+        else
+        {
+            return .failed(.noWindows)
+        }
+        guard capturedWindows.count <= BalancedThreeByTwoLayout.capacity
+        else
+        {
+            return .failed(.tooManyWindows(capturedWindows.count))
+        }
+
+        let originalWindows = visualOrder.ordered(capturedWindows)
+        let originalFrames = originalWindows.map
+        {
+            WindowFrameState(token: $0.token, frame: $0.frame)
+        }
+
+        let windowSizes = genericWindowSizes(
+            dimension: .threeByTwo,
+            count: originalWindows.count,
+            screen: targetScreen,
+            spacing: spacing
+        )
+        let layoutResult = threeByTwoLayout.placements(
+            for: windowSizes,
+            in: targetScreen.visibleFrame,
+            spacing: spacing,
+            backingScaleFactor: targetScreen.backingScaleFactor
+        )
+        let placements: [CGRect]
+        switch layoutResult
+        {
+        case .placements(let frames):
+            placements = frames
+        case .unsupportedWindowCount(let count):
+            return .failed(count == 0 ? .noWindows : .tooManyWindows(count))
+        case .doesNotFit(let required, let available):
+            return .failed(.doesNotFit(required: required, available: available))
+        }
+
+        let originalByToken = Dictionary(
+            uniqueKeysWithValues: originalWindows.map
+            {
+                ($0.token, $0.frame)
+            }
+        )
+        let requests = zip(originalWindows, placements).compactMap
+        {
+            window, frame -> WindowPlacementRequest? in
+            guard let previousFrame = originalByToken[window.token]
+            else
+            {
+                return nil
+            }
+            return WindowPlacementRequest(
+                token: window.token,
+                target: LayoutTarget(
+                    frame: frame,
+                    visibleFrame: targetScreen.visibleFrame,
+                    edges: [],
+                    backingScaleFactor: targetScreen.backingScaleFactor
+                ),
+                historyPreviousFrame: previousFrame,
+                command: nil
+            )
+        }
+        guard requests.count == originalWindows.count
+        else
+        {
+            return .failed(.move(.staleWindow))
+        }
+        let result = await windowManager.applyBatch(
+            requests,
+            terminalState: nil,
+            converter: converter
+        )
+        switch result
+        {
+        case .moved:
+            return .arranged(
+                windowCount: requests.count,
+                usedBestEffort: false,
+                terminalSized: false
+            )
+        case .bestEffort:
+            return .arranged(
+                windowCount: requests.count,
+                usedBestEffort: true,
+                terminalSized: false
+            )
+        case .failed(let failure):
+            return .failed(.move(failure))
+        }
+    }
+
     func restorePrevious(
         converter: ScreenCoordinateConverter
     ) async -> WindowArrangementResult
@@ -385,6 +502,7 @@ final class BalancedWindowArrangementService
     }
 
     private func genericWindowSizes(
+        dimension: GridDimension,
         count: Int,
         screen: ScreenSnapshot,
         spacing: CGFloat
@@ -392,7 +510,7 @@ final class BalancedWindowArrangementService
     {
         let cell = GridCell(row: 0, column: 0)
         let region = GridRegion(
-            dimension: .fourByTwo,
+            dimension: dimension,
             anchor: cell,
             extent: cell
         )

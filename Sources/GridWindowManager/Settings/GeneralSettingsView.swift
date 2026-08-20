@@ -7,6 +7,7 @@ struct GeneralSettingsView: View
     @ObservedObject var authorization: AccessibilityAuthorizationService
     @ObservedObject var launchAtLogin: LaunchAtLoginService
     @ObservedObject var terminalWindowSizing: TerminalWindowSizingService
+    @ObservedObject var updates: UpdateController
     @State private var launchAtLoginEnabled: Bool
 
     init(controller: AppController)
@@ -16,6 +17,7 @@ struct GeneralSettingsView: View
         authorization = controller.authorization
         launchAtLogin = controller.launchAtLogin
         terminalWindowSizing = controller.terminalWindowSizing
+        updates = controller.updates
         _launchAtLoginEnabled = State(initialValue: controller.launchAtLogin.isEnabled)
     }
 
@@ -128,6 +130,18 @@ struct GeneralSettingsView: View
                     Text(errorMessage)
                         .font(.caption)
                         .foregroundStyle(.red)
+                }
+            }
+
+            Section("Updates")
+            {
+                LabeledContent("Software Update")
+                {
+                    Button("Check for Updates…")
+                    {
+                        controller.updates.checkForUpdates()
+                    }
+                    .disabled(!updates.canCheck)
                 }
             }
         }

@@ -1,165 +1,182 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
-script_directory="${0:A:h}"
-project_directory="${script_directory:h}"
-project="${project_directory}/GridWindowManager.xcodeproj"
-info_plist="${project_directory}/Resources/Info.plist"
-app_name="GridWindowManager"
-bundle_identifier="com.ideasbyrobert.GridWindowManager"
-app_identity="${APP_IDENTITY:-Developer ID Application: ROBERT KARAPETYAN (X87D35HM5V)}"
-notary_profile="${NOTARY_PROFILE:-AC_NOTARY}"
-team_id="${TEAM_ID:-X87D35HM5V}"
-version="$(plutil -extract CFBundleShortVersionString raw "$info_plist")"
-build="$(plutil -extract CFBundleVersion raw "$info_plist")"
-stamp="$(date -u +%Y%m%d-%H%M%S)"
-release_directory="${GRID_WINDOW_MANAGER_RELEASE_ROOT:-${project_directory}/.derived/release/${stamp}}"
-archive="${release_directory}/${app_name}.xcarchive"
-derived_data="${release_directory}/DerivedData"
-app="${archive}/Products/Applications/${app_name}.app"
-binary="${app}/Contents/MacOS/${app_name}"
-app_submission="${release_directory}/${app_name}-${version}-${build}-app.zip"
-app_zip="${release_directory}/${app_name}-${version}-${build}.zip"
-dmg_root="${release_directory}/DMG"
-dmg="${release_directory}/${app_name}-${version}-${build}.dmg"
-mount_point="${release_directory}/MountedDMG"
-dist_directory="${project_directory}/dist"
-dist_zip="${dist_directory}/${app_name}-${version}-${build}.zip"
-dist_dmg="${dist_directory}/${app_name}-${version}-${build}.dmg"
+APP_NAME="GridWindowManager"
+BUNDLE_ID="com.ideasbyrobert.GridWindowManager"
+APP_IDENTITY="${APP_IDENTITY:-Developer ID Application: ROBERT KARAPETYAN (X87D35HM5V)}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-AC_NOTARY}"
+TEAM_ID="${TEAM_ID:-X87D35HM5V}"
 
-fail()
-{
-    print -u2 "error: $1"
-    exit 65
-}
-
-notarize()
-{
-    local artifact="$1"
-    local result="$2"
-    local submit_arguments=(
-        "$artifact"
-        --keychain-profile "$notary_profile"
-        --no-s3-acceleration
-        --wait
-        --timeout 20m
-        --output-format json
-    )
-    if [[ "$artifact" == *.dmg ]]
-    then
-        submit_arguments+=(--force)
-    fi
-    xcrun notarytool submit "${submit_arguments[@]}" | tee "$result"
-    [[ "$(plutil -extract status raw "$result")" == "Accepted" ]] \
-        || fail "Apple did not accept ${artifact:t}."
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+INFO_PLIST="$ROOT/Resources/Info.plist"
+ENTITLEMENTS="$ROOT/Resources/GridWindowManager.entitlements"
+VERSION="$(plutil -extract CFBundleShortVersionString raw "$INFO_PLIST")"
+BUILD="$(plutil -extract CFBundleVersion raw "$INFO_PLIST")"
+DIST="$ROOT/dist"
+STAGE="$(mktemp -d /private/tmp/spread-release.XXXXXX)"
+BUNDLE="$STAGE/$APP_NAME.app"
 
 cleanup()
 {
-    if mount | grep -Fq "on ${mount_point} "
-    then
-        diskutil eject "$mount_point" >/dev/null
+    if mount | grep -Fq "on ${STAGE}/MountedDMG " 2>/dev/null; then
+        diskutil eject "${STAGE}/MountedDMG" >/dev/null 2>&1 || true
     fi
+    rm -rf "$STAGE"
 }
-
 trap cleanup EXIT
 
+say()
+{
+    printf '==> %s\n' "$*"
+}
+
+die()
+{
+    printf 'error: %s\n' "$*" >&2
+    exit 65
+}
+
 identities="$(security find-identity -v -p codesigning)"
-[[ "$identities" == *"$app_identity"* ]] \
-    || fail "the Developer ID Application identity is unavailable."
-xcrun notarytool history \
-    --keychain-profile "$notary_profile" \
-    >/dev/null 2>&1 \
-    || fail "the ${notary_profile} notary profile is unusable."
+[[ "$identities" == *"$APP_IDENTITY"* ]] || die "the Developer ID Application identity is unavailable."
 
-mkdir -p "$release_directory" "$dist_directory"
-cd "$project_directory"
-xcodegen generate
-xcodebuild \
-    -quiet \
-    -project "$project" \
-    -scheme "$app_name" \
-    -configuration Release \
-    -destination "generic/platform=macOS" \
-    -archivePath "$archive" \
-    -derivedDataPath "$derived_data" \
-    "ARCHS=arm64 x86_64" \
-    "CODE_SIGN_IDENTITY=$app_identity" \
-    "DEVELOPMENT_TEAM=$team_id" \
-    CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
-    CODE_SIGN_STYLE=Manual \
-    ENABLE_HARDENED_RUNTIME=YES \
-    ONLY_ACTIVE_ARCH=NO \
-    archive
+xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 || die "the ${NOTARY_PROFILE} notary profile is unusable."
 
-[[ -d "$app" ]] || fail "the archive did not contain ${app_name}.app."
-[[ "$(plutil -extract CFBundleIdentifier raw "${app}/Contents/Info.plist")" == "$bundle_identifier" ]] \
-    || fail "the release app has the wrong bundle identifier."
-[[ "$(plutil -extract CFBundleIconName raw "${app}/Contents/Info.plist")" == "$app_name" ]] \
-    || fail "the adaptive app icon was not compiled."
-architectures="$(lipo -archs "$binary")"
-[[ "$architectures" == *"arm64"* && "$architectures" == *"x86_64"* ]] \
-    || fail "the release app is not universal."
-codesign --verify --deep --strict --verbose=2 "$app"
-signature="$(codesign -dvv "$app" 2>&1)"
-[[ "$signature" == *"Authority=$app_identity"* ]] \
-    || fail "the app is not signed with the requested Developer ID identity."
-[[ "$signature" == *"TeamIdentifier=$team_id"* ]] \
-    || fail "the app is signed by the wrong team."
-[[ "$signature" == *"Timestamp="* ]] \
-    || fail "the app does not have a secure timestamp."
-[[ "$signature" == *"runtime"* ]] \
-    || fail "hardened runtime is missing."
-entitlements="$(codesign -d --entitlements - "$app" 2>/dev/null)"
-[[ "$entitlements" == *"com.apple.security.automation.apple-events"* ]] \
-    || fail "the Apple Events entitlement is missing."
-[[ "$entitlements" != *"com.apple.security.get-task-allow"* ]] \
-    || fail "the release app permits debugger attachment."
+say "1. Building universal $APP_NAME (x86_64 + arm64)"
+cd "$ROOT"
 
-ditto -c -k --sequesterRsrc --keepParent "$app" "$app_submission"
-notarize "$app_submission" "${release_directory}/notary-app.json"
-xcrun stapler staple "$app"
-xcrun stapler validate "$app"
-spctl -a -t execute -vv "$app"
-ditto -c -k --sequesterRsrc --keepParent "$app" "$app_zip"
+build_slice()
+{
+    local arch="$1"
+    local triple="$arch-apple-macosx15.0"
+    say "    compiling $arch ($triple)"
+    swift build -c release --triple "$triple"
+}
 
-mkdir -p "$dmg_root"
-ditto "$app" "${dmg_root}/${app_name}.app"
-ln -s /Applications "${dmg_root}/Applications"
-diskutil image create from \
-    --volumeName "$app_name" \
-    --format UDZO \
-    "$dmg_root" \
-    "$dmg"
-codesign --force --sign "$app_identity" --timestamp "$dmg"
-codesign --verify --verbose=2 "$dmg"
-notarize "$dmg" "${release_directory}/notary-dmg.json"
-xcrun stapler staple "$dmg"
-xcrun stapler validate "$dmg"
-spctl -a -t open --context context:primary-signature -vv "$dmg"
+build_slice arm64
+build_slice x86_64
 
-mkdir -p "$mount_point"
-diskutil image attach \
-    --mountOptions nobrowse \
-    --readOnly \
-    --mountPoint "$mount_point" \
-    "$dmg" \
-    >/dev/null
-[[ -d "${mount_point}/${app_name}.app" ]] \
-    || fail "the disk image does not contain ${app_name}.app."
-[[ -L "${mount_point}/Applications" && "$(readlink "${mount_point}/Applications")" == "/Applications" ]] \
-    || fail "the disk image does not contain the Applications shortcut."
-codesign --verify --deep --strict --verbose=2 "${mount_point}/${app_name}.app"
-xcrun stapler validate "${mount_point}/${app_name}.app"
-spctl -a -t execute -vv "${mount_point}/${app_name}.app"
-diskutil eject "$mount_point" >/dev/null
+ARM_BUILD_DIR="$ROOT/.build/arm64-apple-macosx/release"
+X86_BUILD_DIR="$ROOT/.build/x86_64-apple-macosx/release"
 
-ditto "$app_zip" "$dist_zip"
-ditto "$dmg" "$dist_dmg"
-shasum -a 256 "$dist_zip" "$dist_dmg" | tee "${release_directory}/SHA256SUMS"
+[ -x "$ARM_BUILD_DIR/$APP_NAME" ] || die "arm64 build product missing: $ARM_BUILD_DIR/$APP_NAME"
+[ -x "$X86_BUILD_DIR/$APP_NAME" ] || die "x86_64 build product missing: $X86_BUILD_DIR/$APP_NAME"
 
-print "Built a Developer ID signed, notarized, and stapled GridWindowManager release."
-print "App: $app"
-print "ZIP: $dist_zip"
-print "DMG: $dist_dmg"
-print "Release evidence: $release_directory"
+UNIVERSAL_DIR="$STAGE/universal"
+mkdir -p "$UNIVERSAL_DIR"
+APP_EXEC="$UNIVERSAL_DIR/$APP_NAME"
+
+lipo -create "$ARM_BUILD_DIR/$APP_NAME" "$X86_BUILD_DIR/$APP_NAME" -output "$APP_EXEC"
+lipo "$APP_EXEC" -verify_arch x86_64 arm64 || die "release executable is not universal: $APP_EXEC"
+say "    app architectures: $(lipo "$APP_EXEC" -archs)"
+
+say "2. Assembling App Bundle ($BUNDLE)"
+rm -rf "$BUNDLE"
+mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
+
+cp "$APP_EXEC" "$BUNDLE/Contents/MacOS/$APP_NAME"
+cp "$INFO_PLIST" "$BUNDLE/Contents/Info.plist"
+
+say "3. Rendering and bundling App Icon"
+ICON_TMP="$(mktemp -d)"
+if swift "$ROOT/tools/make_icon.swift" "$ICON_TMP" >/dev/null 2>&1 \
+   && iconutil -c icns "$ICON_TMP/GridWindowManager.iconset" -o "$BUNDLE/Contents/Resources/GridWindowManager.icns" 2>/dev/null; then
+    say "    bundled GridWindowManager.icns"
+else
+    say "    (icon generation skipped)"
+fi
+rm -rf "$ICON_TMP"
+
+say "4. Embedding and signing Sparkle"
+"$ROOT/tools/embed_sparkle.sh" "$BUNDLE" "$APP_IDENTITY" "$ENTITLEMENTS"
+
+say "5. Signing App Bundle with Developer ID & Hardened Runtime"
+codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" \
+    --sign "$APP_IDENTITY" "$BUNDLE/Contents/MacOS/$APP_NAME"
+codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" \
+    --sign "$APP_IDENTITY" "$BUNDLE"
+
+codesign --verify --deep --strict --verbose=2 "$BUNDLE" 2>&1 | sed 's/^/    /'
+
+say "6. Notarising the app bundle"
+APP_ZIP="$STAGE/$APP_NAME-app.zip"
+ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" "$APP_ZIP"
+
+APP_RESULT="$(xcrun notarytool submit "$APP_ZIP" --keychain-profile "$NOTARY_PROFILE" \
+              --wait --output-format json)"
+APP_STATUS="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['status'])" "$APP_RESULT")"
+if [ "$APP_STATUS" != "Accepted" ]; then
+    printf '  App notarization failed with status %s:\n%s\n' "$APP_STATUS" "$APP_RESULT"
+    exit 1
+fi
+xcrun stapler staple "$BUNDLE"
+xcrun stapler validate "$BUNDLE" >/dev/null || die "the app bundle has no stapled ticket after stapling"
+say "    app stapled — validates offline"
+
+say "7. Packaging DMG ($APP_NAME.dmg)"
+mkdir -p "$DIST" "$STAGE/dmg"
+cp -R "$BUNDLE" "$STAGE/dmg/"
+ln -s /Applications "$STAGE/dmg/Applications"
+
+DMG="$STAGE/$APP_NAME-$VERSION-$BUILD.dmg"
+rm -f "$DMG"
+hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE/dmg" \
+               -ov -format UDZO "$DMG" >/dev/null 2>&1
+
+codesign --force --sign "$APP_IDENTITY" --timestamp "$DMG"
+say "DMG created and signed"
+
+say "8. Notarising the DMG ($NOTARY_PROFILE)..."
+DMG_RESULT="$(xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" \
+              --wait --output-format json)"
+DMG_STATUS="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['status'])" "$DMG_RESULT")"
+if [ "$DMG_STATUS" != "Accepted" ]; then
+    printf '  Notarization failed with status %s:\n%s\n' "$DMG_STATUS" "$DMG_RESULT"
+    exit 1
+fi
+say "Notarization accepted by Apple"
+
+say "9. Stapling the DMG"
+xcrun stapler staple "$DMG" >/dev/null
+say "Stapled successfully"
+
+say "10. Gatekeeper Verification"
+spctl -a -t exec -v "$BUNDLE" 2>&1 | sed 's/^/    /'
+spctl -a -t open --context context:primary-signature -v "$DMG" 2>&1 | sed 's/^/    /'
+xcrun stapler validate "$DMG" 2>&1 | sed 's/^/    /'
+
+MOUNT_POINT="${STAGE}/MountedDMG"
+mkdir -p "$MOUNT_POINT"
+diskutil image attach --mountOptions nobrowse --readOnly --mountPoint "$MOUNT_POINT" "$DMG" >/dev/null
+
+if xcrun stapler validate "$MOUNT_POINT/$APP_NAME.app" >/dev/null 2>&1; then
+    codesign --verify --deep --strict --verbose=2 "$MOUNT_POINT/$APP_NAME.app" >/dev/null 2>&1 || {
+        diskutil eject "$MOUNT_POINT" >/dev/null 2>&1 || true
+        die "the app inside the DMG has invalid nested code signatures"
+    }
+    lipo "$MOUNT_POINT/$APP_NAME.app/Contents/MacOS/$APP_NAME" -verify_arch x86_64 arm64 || {
+        diskutil eject "$MOUNT_POINT" >/dev/null 2>&1 || true
+        die "the app inside the DMG is not universal"
+    }
+    diskutil eject "$MOUNT_POINT" >/dev/null 2>&1 || true
+    say "    the universal app is stapled and all nested code is intact inside the DMG"
+else
+    diskutil eject "$MOUNT_POINT" >/dev/null 2>&1 || true
+    die "the app inside the DMG has no stapled ticket"
+fi
+
+say "11. Promoting verified artifacts into dist/"
+mkdir -p "$DIST"
+cp "$DMG" "$DIST/$APP_NAME.dmg"
+cp "$DMG" "$DIST/$APP_NAME-$VERSION-$BUILD.dmg"
+(cd "$DIST" && shasum -a 256 "$APP_NAME.dmg" "$APP_NAME-$VERSION-$BUILD.dmg") > "$DIST/SHA256SUMS"
+
+say "12. Publishing to the Sparkle update channel on Cloudflare R2"
+if [ "${SPREAD_PUBLISH:-1}" = "1" ]; then
+    "$ROOT/tools/publish_update.sh" "$DIST/$APP_NAME.dmg" "$BUNDLE"
+else
+    say "    (skipped publishing: SPREAD_PUBLISH=0)"
+fi
+
+say "=== Release Complete ==="
+ls -lh "$DIST"

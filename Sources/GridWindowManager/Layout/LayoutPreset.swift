@@ -28,6 +28,24 @@ enum LayoutPreset: String, CaseIterable, Codable, Sendable
     case centeredHalf
     case centeredTwoThirds
     case centeredThreeQuarters
+    case leftSixtyPercent
+    case rightFortyPercent
+    case leftFortyPercent
+    case rightSixtyPercent
+    case leftSeventyPercent
+    case rightThirtyPercent
+    case leftThirtyPercent
+    case rightSeventyPercent
+    case topSeventyPercent
+    case bottomThirtyPercent
+    case centerFocusFiftyPercent
+    case centerFocusSixtyPercent
+    case centeredSixtyPercent
+    case centeredEightyPercent
+    case firstQuarterColumn
+    case secondQuarterColumn
+    case thirdQuarterColumn
+    case fourthQuarterColumn
 
     static let paletteCases: [LayoutPreset] = [
         .fill,
@@ -60,9 +78,36 @@ enum LayoutPreset: String, CaseIterable, Codable, Sendable
 
     static let centeredSizeCases: [LayoutPreset] = [
         .centeredHalf,
+        .centeredSixtyPercent,
         .centeredTwoThirds,
         .centeredThreeQuarters,
+        .centeredEightyPercent,
         .almostFill
+    ]
+
+    static let masterStackCases: [LayoutPreset] = [
+        .leftSixtyPercent,
+        .rightFortyPercent,
+        .leftFortyPercent,
+        .rightSixtyPercent,
+        .leftSeventyPercent,
+        .rightThirtyPercent,
+        .leftThirtyPercent,
+        .rightSeventyPercent,
+        .topSeventyPercent,
+        .bottomThirtyPercent
+    ]
+
+    static let triptychCases: [LayoutPreset] = [
+        .centerFocusFiftyPercent,
+        .centerFocusSixtyPercent
+    ]
+
+    static let fourColumnCases: [LayoutPreset] = [
+        .firstQuarterColumn,
+        .secondQuarterColumn,
+        .thirdQuarterColumn,
+        .fourthQuarterColumn
     ]
 
     var title: String
@@ -121,6 +166,42 @@ enum LayoutPreset: String, CaseIterable, Codable, Sendable
             "Centered Two Thirds"
         case .centeredThreeQuarters:
             "Centered Three Quarters"
+        case .leftSixtyPercent:
+            "Left 60%"
+        case .rightFortyPercent:
+            "Right 40%"
+        case .leftFortyPercent:
+            "Left 40%"
+        case .rightSixtyPercent:
+            "Right 60%"
+        case .leftSeventyPercent:
+            "Left 70%"
+        case .rightThirtyPercent:
+            "Right 30%"
+        case .leftThirtyPercent:
+            "Left 30%"
+        case .rightSeventyPercent:
+            "Right 70%"
+        case .topSeventyPercent:
+            "Top 70%"
+        case .bottomThirtyPercent:
+            "Bottom 30%"
+        case .centerFocusFiftyPercent:
+            "Center Focus 50%"
+        case .centerFocusSixtyPercent:
+            "Center Focus 60%"
+        case .centeredSixtyPercent:
+            "Centered 60%"
+        case .centeredEightyPercent:
+            "Centered 80%"
+        case .firstQuarterColumn:
+            "First Column (1/4)"
+        case .secondQuarterColumn:
+            "Second Column (2/4)"
+        case .thirdQuarterColumn:
+            "Third Column (3/4)"
+        case .fourthQuarterColumn:
+            "Fourth Column (4/4)"
         }
     }
 
@@ -128,9 +209,7 @@ enum LayoutPreset: String, CaseIterable, Codable, Sendable
     {
         switch self
         {
-        case .fill:
-            "rectangle.inset.filled"
-        case .almostFill:
+        case .fill, .almostFill:
             "rectangle.inset.filled"
         case .center:
             "rectangle.center.inset.filled"
@@ -138,13 +217,17 @@ enum LayoutPreset: String, CaseIterable, Codable, Sendable
             "arrow.left.and.right"
         case .maximizeHeight:
             "arrow.up.and.down"
-        case .leftHalf:
+        case .leftHalf, .leftSixtyPercent, .leftSeventyPercent:
             "rectangle.lefthalf.inset.filled"
-        case .rightHalf:
+        case .rightHalf, .rightFortyPercent, .rightThirtyPercent:
             "rectangle.righthalf.inset.filled"
-        case .topHalf:
+        case .leftFortyPercent, .leftThirtyPercent:
+            "rectangle.leadingthird.inset.filled"
+        case .rightSixtyPercent, .rightSeventyPercent:
+            "rectangle.trailingthird.inset.filled"
+        case .topHalf, .topSeventyPercent:
             "rectangle.tophalf.inset.filled"
-        case .bottomHalf:
+        case .bottomHalf, .bottomThirtyPercent:
             "rectangle.bottomhalf.inset.filled"
         case .topLeftQuarter:
             "rectangle.topthird.inset.filled"
@@ -158,8 +241,12 @@ enum LayoutPreset: String, CaseIterable, Codable, Sendable
             "rectangle.split.3x1"
         case .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds:
             "rectangle.split.1x2"
-        case .centeredHalf, .centeredTwoThirds, .centeredThreeQuarters:
+        case .centeredHalf, .centeredSixtyPercent, .centeredTwoThirds, .centeredThreeQuarters, .centeredEightyPercent:
             "rectangle.center.inset.filled"
+        case .centerFocusFiftyPercent, .centerFocusSixtyPercent:
+            "rectangle.center.inset.filled"
+        case .firstQuarterColumn, .secondQuarterColumn, .thirdQuarterColumn, .fourthQuarterColumn:
+            "rectangle.split.3x1"
         }
     }
 }

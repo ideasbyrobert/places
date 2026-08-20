@@ -6,6 +6,7 @@ struct MenuBarContent: View
     @ObservedObject private var preferences: AppPreferences
     @ObservedObject private var authorization: AccessibilityAuthorizationService
     @ObservedObject private var desktopVisibility: DesktopVisibilityService
+    @ObservedObject private var updates: UpdateController
 
     init(controller: AppController)
     {
@@ -13,6 +14,7 @@ struct MenuBarContent: View
         preferences = controller.preferences
         authorization = controller.authorization
         desktopVisibility = controller.desktopVisibility
+        updates = controller.updates
     }
 
     var body: some View
@@ -21,6 +23,12 @@ struct MenuBarContent: View
         {
             controller.openPalette()
         }
+
+        Button("Arrange App Windows 3 × 2")
+        {
+            controller.arrangeAllWindowsThreeByTwo()
+        }
+        .disabled(!controller.batchArrangementAvailability.isAvailable)
 
         Button("Arrange App Windows 4 × 2")
         {
@@ -36,9 +44,9 @@ struct MenuBarContent: View
 
         Text("Shortcut: \(preferences.paletteShortcut.displayName)")
 
-        Menu("Common Layouts")
+        Menu("Pro Splits")
         {
-            ForEach(LayoutPreset.paletteCases, id: \.self)
+            ForEach(LayoutPreset.masterStackCases, id: \.self)
             {
                 preset in
                 Button(preset.title)
@@ -71,16 +79,15 @@ struct MenuBarContent: View
             }
         }
 
-        Menu("Size and Position")
+        Menu("Triptych & Center Focus")
         {
-            Button(LayoutPreset.maximizeWidth.title)
+            ForEach(LayoutPreset.triptychCases, id: \.self)
             {
-                controller.applyPreset(.maximizeWidth)
-            }
-
-            Button(LayoutPreset.maximizeHeight.title)
-            {
-                controller.applyPreset(.maximizeHeight)
+                preset in
+                Button(preset.title)
+                {
+                    controller.applyPreset(preset)
+                }
             }
 
             Divider()
@@ -92,6 +99,31 @@ struct MenuBarContent: View
                 {
                     controller.applyPreset(preset)
                 }
+            }
+        }
+
+        Menu("Common Layouts")
+        {
+            ForEach(LayoutPreset.paletteCases, id: \.self)
+            {
+                preset in
+                Button(preset.title)
+                {
+                    controller.applyPreset(preset)
+                }
+            }
+        }
+
+        Menu("Size and Position")
+        {
+            Button(LayoutPreset.maximizeWidth.title)
+            {
+                controller.applyPreset(.maximizeWidth)
+            }
+
+            Button(LayoutPreset.maximizeHeight.title)
+            {
+                controller.applyPreset(.maximizeHeight)
             }
 
             Divider()
@@ -163,6 +195,13 @@ struct MenuBarContent: View
 
         Menu("Displays")
         {
+            Button("Swap Windows Between Displays")
+            {
+                controller.swapWindowsBetweenDisplays()
+            }
+
+            Divider()
+
             Button("Gather App Windows on This Display")
             {
                 controller.gatherAppWindowsOnFocusedDisplay()
@@ -243,6 +282,12 @@ struct MenuBarContent: View
         {
             controller.showAbout()
         }
+
+        Button("Check for Updates…")
+        {
+            controller.updates.checkForUpdates()
+        }
+        .disabled(!updates.canCheck)
 
         Divider()
 

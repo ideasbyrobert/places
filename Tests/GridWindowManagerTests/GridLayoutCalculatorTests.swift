@@ -89,6 +89,113 @@ final class GridLayoutCalculatorTests: XCTestCase
         XCTAssertEqual(bottomRight.edges, [.right, .bottom])
     }
 
+    func testThreeByTwoUsesThreeColumnsAndTwoRows()
+    {
+        let topLeft = targetForCell(row: 0, column: 0, dimension: .threeByTwo, spacing: 0)
+        let bottomRight = targetForCell(row: 1, column: 2, dimension: .threeByTwo, spacing: 0)
+
+        XCTAssertEqual(topLeft.frame, CGRect(x: 10, y: 470, width: 400, height: 450))
+        XCTAssertEqual(bottomRight.frame, CGRect(x: 810, y: 20, width: 400, height: 450))
+        XCTAssertEqual(topLeft.edges, [.left, .top])
+        XCTAssertEqual(bottomRight.edges, [.right, .bottom])
+    }
+
+    func testTwoByThreeUsesTwoColumnsAndThreeRows()
+    {
+        let topLeft = targetForCell(row: 0, column: 0, dimension: .twoByThree, spacing: 0)
+        let bottomRight = targetForCell(row: 2, column: 1, dimension: .twoByThree, spacing: 0)
+
+        XCTAssertEqual(topLeft.frame, CGRect(x: 10, y: 620, width: 600, height: 300))
+        XCTAssertEqual(bottomRight.frame, CGRect(x: 610, y: 20, width: 600, height: 300))
+        XCTAssertEqual(topLeft.edges, [.left, .top])
+        XCTAssertEqual(bottomRight.edges, [.right, .bottom])
+    }
+
+    func testProMasterStackSplits()
+    {
+        let leftSixty = calculator.target(
+            for: .preset(.leftSixtyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let rightForty = calculator.target(
+            for: .preset(.rightFortyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let leftSeventy = calculator.target(
+            for: .preset(.leftSeventyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let rightThirty = calculator.target(
+            for: .preset(.rightThirtyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let topSeventy = calculator.target(
+            for: .preset(.topSeventyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let bottomThirty = calculator.target(
+            for: .preset(.bottomThirtyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+
+        XCTAssertEqual(leftSixty.frame, CGRect(x: 10, y: 20, width: 720, height: 900))
+        XCTAssertEqual(rightForty.frame, CGRect(x: 730, y: 20, width: 480, height: 900))
+        XCTAssertEqual(leftSeventy.frame, CGRect(x: 10, y: 20, width: 840, height: 900))
+        XCTAssertEqual(rightThirty.frame, CGRect(x: 850, y: 20, width: 360, height: 900))
+        XCTAssertEqual(topSeventy.frame, CGRect(x: 10, y: 290, width: 1200, height: 630))
+        XCTAssertEqual(bottomThirty.frame, CGRect(x: 10, y: 20, width: 1200, height: 270))
+    }
+
+    func testProCenterFocusTriptych()
+    {
+        let centerFifty = calculator.target(
+            for: .preset(.centerFocusFiftyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let centerSixty = calculator.target(
+            for: .preset(.centerFocusSixtyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+
+        XCTAssertEqual(centerFifty.frame, CGRect(x: 310, y: 20, width: 600, height: 900))
+        XCTAssertEqual(centerSixty.frame, CGRect(x: 250, y: 20, width: 720, height: 900))
+    }
+
+    func testProCenteredSizes()
+    {
+        let centeredSixty = calculator.target(
+            for: .preset(.centeredSixtyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+        let centeredEighty = calculator.target(
+            for: .preset(.centeredEightyPercent),
+            on: screen,
+            currentWindowFrame: .zero,
+            spacing: 0
+        )
+
+        XCTAssertEqual(centeredSixty.frame, CGRect(x: 250, y: 200, width: 720, height: 540))
+        XCTAssertEqual(centeredEighty.frame, CGRect(x: 130, y: 110, width: 960, height: 720))
+    }
+
     func testMultiCellSpanConsumesInternalGaps()
     {
         let region = GridRegion(

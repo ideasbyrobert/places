@@ -17,11 +17,10 @@ struct PaletteView: View
     {
         VStack(alignment: .leading, spacing: 16)
         {
-            HStack
+            VStack(alignment: .leading, spacing: 10)
             {
                 Text("Arrange Window")
                     .font(.headline)
-                Spacer()
                 Picker("Grid", selection: $selectedDimension)
                 {
                     ForEach(GridDimension.allCases, id: \.self)
@@ -33,7 +32,7 @@ struct PaletteView: View
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 198)
+                .frame(maxWidth: .infinity)
                 .onChange(of: selectedDimension)
                 {
                     _, dimension in
@@ -70,6 +69,18 @@ struct PaletteView: View
 
             HStack(spacing: 8)
             {
+                Menu("Splits")
+                {
+                    ForEach(LayoutPreset.masterStackCases, id: \.self)
+                    {
+                        preset in
+                        Button(preset.title)
+                        {
+                            model.commit(preset)
+                        }
+                    }
+                }
+
                 Menu("Thirds")
                 {
                     ForEach(LayoutPreset.horizontalThirdCases, id: \.self)
@@ -95,6 +106,17 @@ struct PaletteView: View
 
                 Menu("Center")
                 {
+                    ForEach(LayoutPreset.triptychCases, id: \.self)
+                    {
+                        preset in
+                        Button(preset.title)
+                        {
+                            model.commit(preset)
+                        }
+                    }
+
+                    Divider()
+
                     ForEach(LayoutPreset.centeredSizeCases, id: \.self)
                     {
                         preset in
@@ -202,7 +224,7 @@ struct PaletteView: View
             .accessibilityIdentifier("palette.grid")
             .accessibilityLabel("Window layout grid")
 
-            Text("Drag across cells. Use 2, 3, or 4 for grids; F to fill; C to center; Option-arrow to move; Command-arrow to resize.")
+            Text("Drag across cells. Numbers set the grid; F fills; C centers; ⌥ arrows move; ⌘ arrows resize.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -254,10 +276,18 @@ struct PaletteView: View
     {
         switch dimension
         {
+        case .twoByTwo:
+            return 590
+        case .threeByTwo:
+            return 480
+        case .twoByThree:
+            return 755
+        case .three:
+            return 590
         case .fourByTwo:
-            return 422
-        case .three, .four:
-            return 602
+            return 448
+        case .four:
+            return 590
         }
     }
 }

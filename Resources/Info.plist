@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>1.0.1</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMultipleInstancesProhibited</key>
@@ -26,5 +26,13 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>GridWindowManager uses Terminal Automation only to set the selected tab in each Terminal window to 80 columns by 48 rows when you choose Arrange App Windows 4 × 2.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://downloads.ideasbyrobert.com/spread/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>+vhVXgERIDkF9jUDCo/eorsxZ8NP52N+ILOpYHZCiKQ=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

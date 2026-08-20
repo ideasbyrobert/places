@@ -97,6 +97,16 @@ final class PaletteController: NSObject, NSWindowDelegate
         )))
     }
 
+    func snapshot(to path: String)
+    {
+        guard let panel
+        else
+        {
+            return
+        }
+        PaletteSnapshotWriter.write(panel, to: path)
+    }
+
     func close(restoreTarget: Bool = false)
     {
         guard !isClosing
@@ -193,11 +203,17 @@ final class PaletteController: NSObject, NSWindowDelegate
         switch event.keyCode
         {
         case 19:
-            model.setDimension(.fourByTwo)
+            model.setDimension(.twoByTwo)
         case 20:
             model.setDimension(.three)
         case 21:
             model.setDimension(.four)
+        case 23:
+            model.setDimension(.threeByTwo)
+        case 22:
+            model.setDimension(.fourByTwo)
+        case 26:
+            model.setDimension(.twoByThree)
         case 36, 76:
             model.commitSelection()
         case 53:

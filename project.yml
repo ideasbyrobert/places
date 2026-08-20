@@ -32,6 +32,10 @@ targets:
         LSMultipleInstancesProhibited: true
         LSUIElement: true
         NSAppleEventsUsageDescription: GridWindowManager uses Terminal Automation only to set the selected tab in each Terminal window to 80 columns by 48 rows when you choose Arrange App Windows 4 × 2.
+        SUFeedURL: https://downloads.ideasbyrobert.com/spread/appcast.xml
+        SUPublicEDKey: +vhVXgERIDkF9jUDCo/eorsxZ8NP52N+ILOpYHZCiKQ=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     entitlements:
       path: Resources/GridWindowManager.entitlements
       properties:

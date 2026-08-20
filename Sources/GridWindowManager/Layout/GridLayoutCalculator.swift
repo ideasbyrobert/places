@@ -329,6 +329,160 @@ struct GridLayoutCalculator: LayoutCalculating
                 screen: screen,
                 spacing: spacing
             )
+        case .leftSixtyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.0,
+                widthFraction: 0.6,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.left, .top, .bottom]
+            )
+        case .rightFortyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.6,
+                widthFraction: 0.4,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.right, .top, .bottom]
+            )
+        case .leftFortyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.0,
+                widthFraction: 0.4,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.left, .top, .bottom]
+            )
+        case .rightSixtyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.4,
+                widthFraction: 0.6,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.right, .top, .bottom]
+            )
+        case .leftSeventyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.0,
+                widthFraction: 0.7,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.left, .top, .bottom]
+            )
+        case .rightThirtyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.7,
+                widthFraction: 0.3,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.right, .top, .bottom]
+            )
+        case .leftThirtyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.0,
+                widthFraction: 0.3,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.left, .top, .bottom]
+            )
+        case .rightSeventyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.3,
+                widthFraction: 0.7,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.right, .top, .bottom]
+            )
+        case .topSeventyPercent:
+            return verticalSplitTarget(
+                startFraction: 0.0,
+                heightFraction: 0.7,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.left, .right, .top]
+            )
+        case .bottomThirtyPercent:
+            return verticalSplitTarget(
+                startFraction: 0.7,
+                heightFraction: 0.3,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.left, .right, .bottom]
+            )
+        case .centerFocusFiftyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.25,
+                widthFraction: 0.50,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.top, .bottom]
+            )
+        case .centerFocusSixtyPercent:
+            return horizontalSplitTarget(
+                startFraction: 0.20,
+                widthFraction: 0.60,
+                screen: screen,
+                spacing: spacing,
+                explicitEdges: [.top, .bottom]
+            )
+        case .centeredSixtyPercent:
+            return centeredTarget(
+                widthFraction: 0.60,
+                heightFraction: 0.60,
+                screen: screen,
+                spacing: spacing
+            )
+        case .centeredEightyPercent:
+            return centeredTarget(
+                widthFraction: 0.80,
+                heightFraction: 0.80,
+                screen: screen,
+                spacing: spacing
+            )
+        case .firstQuarterColumn:
+            return gridTarget(
+                columns: 4,
+                rows: 1,
+                minimumColumn: 0,
+                maximumColumn: 0,
+                minimumRow: 0,
+                maximumRow: 0,
+                screen: screen,
+                spacing: spacing
+            )
+        case .secondQuarterColumn:
+            return gridTarget(
+                columns: 4,
+                rows: 1,
+                minimumColumn: 1,
+                maximumColumn: 1,
+                minimumRow: 0,
+                maximumRow: 0,
+                screen: screen,
+                spacing: spacing
+            )
+        case .thirdQuarterColumn:
+            return gridTarget(
+                columns: 4,
+                rows: 1,
+                minimumColumn: 2,
+                maximumColumn: 2,
+                minimumRow: 0,
+                maximumRow: 0,
+                screen: screen,
+                spacing: spacing
+            )
+        case .fourthQuarterColumn:
+            return gridTarget(
+                columns: 4,
+                rows: 1,
+                minimumColumn: 3,
+                maximumColumn: 3,
+                minimumRow: 0,
+                maximumRow: 0,
+                screen: screen,
+                spacing: spacing
+            )
         }
     }
 
@@ -439,6 +593,58 @@ struct GridLayoutCalculator: LayoutCalculating
             screen: screen,
             availableFrame: availableFrame,
             explicitEdges: edges(for: frame, within: availableFrame)
+        )
+    }
+
+    private func horizontalSplitTarget(
+        startFraction: CGFloat,
+        widthFraction: CGFloat,
+        screen: ScreenSnapshot,
+        spacing: CGFloat,
+        explicitEdges: LayoutEdges
+    ) -> LayoutTarget
+    {
+        let availableFrame = availableFrame(screen: screen, spacing: spacing)
+        let usableWidth = availableFrame.width
+        let x = availableFrame.minX + usableWidth * startFraction
+        let width = usableWidth * widthFraction
+        let frame = CGRect(
+            x: x,
+            y: availableFrame.minY,
+            width: width,
+            height: availableFrame.height
+        )
+        return target(
+            frame: frame,
+            screen: screen,
+            availableFrame: availableFrame,
+            explicitEdges: explicitEdges
+        )
+    }
+
+    private func verticalSplitTarget(
+        startFraction: CGFloat,
+        heightFraction: CGFloat,
+        screen: ScreenSnapshot,
+        spacing: CGFloat,
+        explicitEdges: LayoutEdges
+    ) -> LayoutTarget
+    {
+        let availableFrame = availableFrame(screen: screen, spacing: spacing)
+        let usableHeight = availableFrame.height
+        let height = usableHeight * heightFraction
+        let y = availableFrame.maxY - (usableHeight * startFraction) - height
+        let frame = CGRect(
+            x: availableFrame.minX,
+            y: y,
+            width: availableFrame.width,
+            height: height
+        )
+        return target(
+            frame: frame,
+            screen: screen,
+            availableFrame: availableFrame,
+            explicitEdges: explicitEdges
         )
     }
 

@@ -18,6 +18,7 @@ final class AppController: ObservableObject
     let launchAtLogin = LaunchAtLoginService()
     let terminalWindowSizing = TerminalWindowSizingService()
     let desktopVisibility = DesktopVisibilityService()
+    let updates = UpdateController()
 
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.ideasbyrobert.GridWindowManager",
@@ -432,6 +433,64 @@ final class AppController: ObservableObject
         }
     }
 
+    func arrangeAllWindowsThreeByTwo()
+    {
+        let requestIdentifier = UUID()
+        cancelAvailabilityRefresh()
+        availabilityRequestIdentifier = requestIdentifier
+        batchArrangementAvailability = .checking
+        authorization.refresh()
+        guard authorization.isTrusted
+        else
+        {
+            let failure = MoveFailure.accessibilityPermissionRequired
+            batchArrangementAvailability = .unavailable(failure)
+            statusMessage = failure.message
+            showPermissionWindow()
+            return
+        }
+        guard let processIdentifier = tracker.processIdentifier
+        else
+        {
+            let failure = MoveFailure.noTargetApplication
+            batchArrangementAvailability = .unavailable(failure)
+            statusMessage = failure.message
+            return
+        }
+        let converter = currentConverter()
+        Task
+        {
+            [self] in
+            let focusedResult = await windowManager.captureFocusedWindow(
+                processIdentifier: processIdentifier,
+                converter: converter
+            )
+            guard case .captured(let focusedWindow) = focusedResult,
+                  let screen = currentScreen(for: focusedWindow)
+            else
+            {
+                if case .failed(let failure) = focusedResult
+                {
+                    batchArrangementAvailability = .unavailable(failure)
+                    statusMessage = failure.message
+                }
+                return
+            }
+            let result = await balancedWindowArrangementService.arrangeThreeByTwo(
+                processIdentifier: processIdentifier,
+                targetScreen: screen,
+                spacing: preferences.spacing,
+                converter: converter
+            )
+            guard availabilityRequestIdentifier == requestIdentifier
+            else
+            {
+                return
+            }
+            handle(result)
+        }
+    }
+
     func refreshSavedLayoutSlots()
     {
         guard let bundleIdentifier = targetBundleIdentifier
@@ -648,6 +707,37 @@ final class AppController: ObservableObject
     func moveAppWindowsToNextDisplay()
     {
         moveAppWindows(to: .next)
+    }
+
+    func swapWindowsBetweenDisplays()
+    {
+        authorization.refresh()
+        guard authorization.isTrusted
+        else
+        {
+            statusMessage = MoveFailure.accessibilityPermissionRequired.message
+            showPermissionWindow()
+            return
+        }
+        guard let processIdentifier = tracker.processIdentifier
+        else
+        {
+            statusMessage = MoveFailure.noTargetApplication.message
+            return
+        }
+        let converter = currentConverter()
+        Task
+        {
+            [self] in
+            let screens = displayProvider.snapshots()
+            let result = await displayWindowManagementService.swapAppWindows(
+                processIdentifier: processIdentifier,
+                screens: screens,
+                spacing: preferences.spacing,
+                converter: converter
+            )
+            handle(result)
+        }
     }
 
     func showOrRestoreDesktop()
@@ -1216,6 +1306,14 @@ final class AppController: ObservableObject
         {
             [weak self] command, _ in
             self?.statusMessage = "UI test applied \(command.title)."
+        }
+        if let snapshotPath = ProcessInfo.processInfo.environment["GRIDWINDOWMANAGER_PALETTE_SNAPSHOT"]
+        {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1)
+            {
+                self.paletteController.snapshot(to: snapshotPath)
+                NSApp.terminate(nil)
+            }
         }
     }
 }
