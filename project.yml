@@ -26,7 +26,7 @@ targets:
       - path: Resources/GridWindowManager.icon
         buildPhase: resources
     info:
-      path: Resources/Info.plist
+      path: .derived/xcodegen/Info.plist
       properties:
         LSApplicationCategoryType: public.app-category.utilities
         LSMultipleInstancesProhibited: true
