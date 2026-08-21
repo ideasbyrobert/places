@@ -12,8 +12,8 @@
 	"argv": [
 		"/Users/robert/.local/bin/xcode-build-server"
 	],
-	"workspace": "/Users/robert/build-with-xcode/window-manager/GridWindowManager.xcodeproj/project.xcworkspace",
-	"build_root": "/Users/robert/Library/Developer/Xcode/DerivedData/GridWindowManager-gitguxrxgmrsrqcthbhizrqivpqz",
-	"scheme": "GridWindowManager",
+	"workspace": "/Users/robert/build-with-xcode/window-manager/Places.xcodeproj/project.xcworkspace",
+	"build_root": "/Users/robert/Library/Developer/Xcode/DerivedData/Places-gitguxrxgmrsrqcthbhizrqivpqz",
+	"scheme": "Places",
 	"kind": "xcode"
 }

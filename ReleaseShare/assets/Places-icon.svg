@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Places">
+  <defs>
+    <!-- The same linear gradient the app icon declares in icon.json, resolved
+         from its srgb components and its start and stop orientation. -->
+    <linearGradient id="ground" x1="0.3960441545911203" y1="0.9890738003669028" x2="0.6039558454088797" y2="0.010926199633097156">
+      <stop offset="0" stop-color="#2E6BFF"/>
+      <stop offset="1" stop-color="#1B3CA6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#ground)"/>
+  <rect x="298" y="300" width="60" height="424" rx="26" fill="#FFFFFF" opacity="0.45"/>
+  <rect x="424" y="332" width="300" height="40" rx="20" fill="#FFFFFF" opacity="0.30"/>
+  <rect x="424" y="492" width="236" height="40" rx="20" fill="#FFFFFF" opacity="0.30"/>
+  <rect x="424" y="652" width="280" height="40" rx="20" fill="#FFFFFF" opacity="0.30"/>
+  <circle cx="328" cy="352" r="40" fill="#FFFFFF"/>
+</svg>

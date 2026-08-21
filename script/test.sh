@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MODE="${1:-all}"
-APP_NAME="GridWindowManager"
+APP_NAME="Places"
 FIXTURE_APP_NAME="WindowFixtureApp"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/.build/DerivedData"
@@ -10,7 +10,7 @@ ARCHITECTURE="$(uname -m)"
 DEVELOPMENT_TEAM_IDENTIFIER="${GRIDWINDOWMANAGER_DEVELOPMENT_TEAM:-X87D35HM5V}"
 DEVELOPMENT_SIGNING_IDENTITY="${GRIDWINDOWMANAGER_DEVELOPMENT_IDENTITY:-Apple Development}"
 XCODEBUILD_ARGUMENTS=(
-    -project "$ROOT_DIR/GridWindowManager.xcodeproj"
+    -project "$ROOT_DIR/Places.xcodeproj"
     -scheme "$APP_NAME"
     -configuration Debug
     -derivedDataPath "$DERIVED_DATA"
@@ -29,19 +29,19 @@ case "$MODE" in
     --live-accessibility|live-accessibility)
         XCODEBUILD_ARGUMENTS+=(
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) GRIDWINDOWMANAGER_RUN_AX_TESTS'
-            "-only-testing:GridWindowManagerTests/AccessibilityIntegrationTests"
+            "-only-testing:PlacesTests/AccessibilityIntegrationTests"
         )
         ;;
     --live-app-accessibility|live-app-accessibility)
         XCODEBUILD_ARGUMENTS+=(
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) GRIDWINDOWMANAGER_RUN_APP_AX_UI_TESTS'
-            "-only-testing:GridWindowManagerUITests/LiveAccessibilityUITests"
+            "-only-testing:PlacesUITests/LiveAccessibilityUITests"
         )
         ;;
     --live-terminal|live-terminal)
         XCODEBUILD_ARGUMENTS+=(
             'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) GRIDWINDOWMANAGER_RUN_TERMINAL_TESTS'
-            "-only-testing:GridWindowManagerTests/TerminalAccessibilityIntegrationTests"
+            "-only-testing:PlacesTests/TerminalAccessibilityIntegrationTests"
         )
         ;;
     *)

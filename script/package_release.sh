@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="GridWindowManager"
-BUNDLE_ID="com.ideasbyrobert.GridWindowManager"
+APP_NAME="Places"
+BUNDLE_ID="com.ideasbyrobert.Places"
 APP_IDENTITY="${APP_IDENTITY:-Developer ID Application: ROBERT KARAPETYAN (X87D35HM5V)}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-AC_NOTARY}"
 TEAM_ID="${TEAM_ID:-X87D35HM5V}"
@@ -10,11 +10,11 @@ TEAM_ID="${TEAM_ID:-X87D35HM5V}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 INFO_PLIST="$ROOT/Resources/Info.plist"
-ENTITLEMENTS="$ROOT/Resources/GridWindowManager.entitlements"
+ENTITLEMENTS="$ROOT/Resources/Places.entitlements"
 VERSION="$(plutil -extract CFBundleShortVersionString raw "$INFO_PLIST")"
 BUILD="$(plutil -extract CFBundleVersion raw "$INFO_PLIST")"
 DIST="$ROOT/dist"
-STAGE="$(mktemp -d /private/tmp/spread-release.XXXXXX)"
+STAGE="$(mktemp -d /private/tmp/places-release.XXXXXX)"
 BUNDLE="$STAGE/$APP_NAME.app"
 
 cleanup()
@@ -80,8 +80,8 @@ cp "$INFO_PLIST" "$BUNDLE/Contents/Info.plist"
 say "3. Rendering and bundling App Icon"
 ICON_TMP="$(mktemp -d)"
 if swift "$ROOT/tools/make_icon.swift" "$ICON_TMP" >/dev/null 2>&1 \
-   && iconutil -c icns "$ICON_TMP/GridWindowManager.iconset" -o "$BUNDLE/Contents/Resources/GridWindowManager.icns" 2>/dev/null; then
-    say "    bundled GridWindowManager.icns"
+   && iconutil -c icns "$ICON_TMP/Places.iconset" -o "$BUNDLE/Contents/Resources/Places.icns" 2>/dev/null; then
+    say "    bundled Places.icns"
 else
     say "    (icon generation skipped)"
 fi
@@ -172,10 +172,10 @@ cp "$DMG" "$DIST/$APP_NAME-$VERSION-$BUILD.dmg"
 (cd "$DIST" && shasum -a 256 "$APP_NAME.dmg" "$APP_NAME-$VERSION-$BUILD.dmg") > "$DIST/SHA256SUMS"
 
 say "12. Publishing to the Sparkle update channel on Cloudflare R2"
-if [ "${SPREAD_PUBLISH:-1}" = "1" ]; then
+if [ "${PLACES_PUBLISH:-1}" = "1" ]; then
     "$ROOT/tools/publish_update.sh" "$DIST/$APP_NAME.dmg" "$BUNDLE"
 else
-    say "    (skipped publishing: SPREAD_PUBLISH=0)"
+    say "    (skipped publishing: PLACES_PUBLISH=0)"
 fi
 
 say "=== Release Complete ==="

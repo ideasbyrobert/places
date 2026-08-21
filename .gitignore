@@ -2,7 +2,7 @@
 .build/
 build/
 dist/
-GridWindowManager.xcodeproj/
+Places.xcodeproj/
 *.xcarchive
 *.dmg
 *.log
