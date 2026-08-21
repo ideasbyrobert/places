@@ -323,11 +323,9 @@ final class BalancedWindowArrangementService
             return .failed(.tooManyWindows(capturedWindows.count))
         }
 
+        // No terminal sizing happens on this path, so unlike `arrange` there is
+        // no external state to roll back and nothing to capture frames for.
         let originalWindows = visualOrder.ordered(capturedWindows)
-        let originalFrames = originalWindows.map
-        {
-            WindowFrameState(token: $0.token, frame: $0.frame)
-        }
 
         let windowSizes = genericWindowSizes(
             dimension: .threeByTwo,

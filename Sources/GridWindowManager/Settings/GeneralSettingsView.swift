@@ -38,29 +38,23 @@ struct GeneralSettingsView: View
                 }
                 .pickerStyle(.segmented)
 
-                HStack
-                {
-                    Slider(value: $preferences.spacing, in: 0...32, step: 1)
-                    Text("\(Int(preferences.spacing)) pt")
-                        .monospacedDigit()
-                        .frame(width: 42, alignment: .trailing)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Window spacing")
+                PointSliderRow(
+                    "Window spacing",
+                    value: $preferences.spacing,
+                    in: 0...32,
+                    step: 1
+                )
 
                 Toggle("Show placement preview", isOn: $preferences.showsPreview)
 
                 Toggle("Snap windows at screen edges", isOn: $preferences.edgeSnappingEnabled)
 
-                HStack
-                {
-                    Slider(value: $preferences.adjustmentStep, in: 8...128, step: 8)
-                    Text("\(Int(preferences.adjustmentStep)) pt")
-                        .monospacedDigit()
-                        .frame(width: 48, alignment: .trailing)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Move and resize step")
+                PointSliderRow(
+                    "Move and resize step",
+                    value: $preferences.adjustmentStep,
+                    in: 8...128,
+                    step: 8
+                )
             }
 
             Section("Keyboard")

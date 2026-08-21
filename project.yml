@@ -7,6 +7,13 @@ options:
 configs:
   Debug: debug
   Release: release
+# Kept in step with Package.swift by hand: SwiftPM builds the release, the
+# generated project builds the tests, and when only one of them knew about
+# Sparkle the test target could not compile the app at all.
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.4
 settings:
   base:
     ARCHS: "$(ARCHS_STANDARD)"
@@ -36,6 +43,9 @@ targets:
         SUPublicEDKey: +vhVXgERIDkF9jUDCo/eorsxZ8NP52N+ILOpYHZCiKQ=
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
+    dependencies:
+      - package: Sparkle
+        product: Sparkle
     entitlements:
       path: Resources/GridWindowManager.entitlements
       properties:

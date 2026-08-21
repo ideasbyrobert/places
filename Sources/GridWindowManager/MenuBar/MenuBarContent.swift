@@ -35,83 +35,41 @@ struct MenuBarContent: View
             controller.arrangeAllWindowsFourByTwo()
         }
         .disabled(!controller.batchArrangementAvailability.isAvailable)
-        .onAppear
-        {
-            controller.refreshBatchArrangementAvailability()
-        }
 
         Text(controller.batchArrangementAvailability.detailText)
+            .onAppear
+            {
+                controller.refreshBatchArrangementAvailability()
+            }
 
         Text("Shortcut: \(preferences.paletteShortcut.displayName)")
 
         Menu("Pro Splits")
         {
-            ForEach(LayoutPreset.masterStackCases, id: \.self)
-            {
-                preset in
-                Button(preset.title)
-                {
-                    controller.applyPreset(preset)
-                }
-            }
+            CommandButtons(LayoutPreset.masterStackCases, perform: controller.applyPreset)
         }
 
         Menu("Thirds")
         {
-            ForEach(LayoutPreset.horizontalThirdCases, id: \.self)
-            {
-                preset in
-                Button(preset.title)
-                {
-                    controller.applyPreset(preset)
-                }
-            }
+            CommandButtons(LayoutPreset.horizontalThirdCases, perform: controller.applyPreset)
 
             Divider()
 
-            ForEach(LayoutPreset.verticalThirdCases, id: \.self)
-            {
-                preset in
-                Button(preset.title)
-                {
-                    controller.applyPreset(preset)
-                }
-            }
+            CommandButtons(LayoutPreset.verticalThirdCases, perform: controller.applyPreset)
         }
 
         Menu("Triptych & Center Focus")
         {
-            ForEach(LayoutPreset.triptychCases, id: \.self)
-            {
-                preset in
-                Button(preset.title)
-                {
-                    controller.applyPreset(preset)
-                }
-            }
+            CommandButtons(LayoutPreset.triptychCases, perform: controller.applyPreset)
 
             Divider()
 
-            ForEach(LayoutPreset.centeredSizeCases, id: \.self)
-            {
-                preset in
-                Button(preset.title)
-                {
-                    controller.applyPreset(preset)
-                }
-            }
+            CommandButtons(LayoutPreset.centeredSizeCases, perform: controller.applyPreset)
         }
 
         Menu("Common Layouts")
         {
-            ForEach(LayoutPreset.paletteCases, id: \.self)
-            {
-                preset in
-                Button(preset.title)
-                {
-                    controller.applyPreset(preset)
-                }
-            }
+            CommandButtons(LayoutPreset.paletteCases, perform: controller.applyPreset)
         }
 
         Menu("Size and Position")
@@ -128,26 +86,12 @@ struct MenuBarContent: View
 
             Divider()
 
-            ForEach(WindowMovePosition.allCases, id: \.self)
-            {
-                position in
-                Button(position.title)
-                {
-                    controller.moveWindow(position)
-                }
-            }
+            CommandButtons(WindowMovePosition.allCases, perform: controller.moveWindow)
         }
 
         Menu("Move and Resize")
         {
-            ForEach(WindowAdjustment.allCases, id: \.self)
-            {
-                adjustment in
-                Button(adjustment.title)
-                {
-                    controller.applyAdjustment(adjustment)
-                }
-            }
+            CommandButtons(WindowAdjustment.allCases, perform: controller.applyAdjustment)
         }
 
         Menu("Saved App Layouts")
@@ -185,12 +129,9 @@ struct MenuBarContent: View
             controller.refreshSavedLayoutSlots()
         }
 
-        Menu("Desktop")
+        Button(desktopVisibility.isDesktopShown ? "Restore Desktop" : "Show Desktop")
         {
-            Button(desktopVisibility.isDesktopShown ? "Restore Desktop" : "Show Desktop")
-            {
-                controller.showOrRestoreDesktop()
-            }
+            controller.showOrRestoreDesktop()
         }
 
         Menu("Displays")
@@ -239,25 +180,11 @@ struct MenuBarContent: View
 
         Menu("Window Actions")
         {
-            ForEach(WindowFocusDirection.allCases, id: \.self)
-            {
-                direction in
-                Button(direction.title)
-                {
-                    controller.focusAppWindow(direction)
-                }
-            }
+            CommandButtons(WindowFocusDirection.allCases, perform: controller.focusAppWindow)
 
             Divider()
 
-            ForEach(WindowLifecycleAction.menuCases, id: \.self)
-            {
-                action in
-                Button(action.title)
-                {
-                    controller.performWindowAction(action)
-                }
-            }
+            CommandButtons(WindowLifecycleAction.menuCases, perform: controller.performWindowAction)
         }
 
         if let statusMessage = controller.statusMessage
@@ -285,7 +212,7 @@ struct MenuBarContent: View
 
         Button("Check for Updates…")
         {
-            controller.updates.checkForUpdates()
+            updates.checkForUpdates()
         }
         .disabled(!updates.canCheck)
 

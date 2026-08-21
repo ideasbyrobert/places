@@ -36,7 +36,10 @@ final class MenuBarUITests: XCTestCase
         XCTAssertTrue(application.menuItems["Saved App Layouts"].exists)
         XCTAssertTrue(application.menuItems["Restore Previous Frame"].exists)
         XCTAssertTrue(application.menuItems["Window Actions"].exists)
-        XCTAssertTrue(application.menuItems["Desktop"].exists)
+        // The desktop command is a top level item now: it was the only thing
+        // inside its former submenu, so nesting it cost a click and revealed
+        // nothing. Still asserted, one level shallower.
+        XCTAssertTrue(application.menuItems["Show Desktop"].exists)
         XCTAssertTrue(application.menuItems["Displays"].exists)
         application.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
         application.terminate()
