@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "GridWindowManager",
+    name: "Places",
     platforms: [
         .macOS(.v15)
     ],
     products: [
-        .executable(name: "GridWindowManager", targets: ["GridWindowManager"])
+        .executable(name: "Places", targets: ["Places"])
     ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.4")
     ],
     targets: [
         .executableTarget(
-            name: "GridWindowManager",
+            name: "Places",
             dependencies: [
                 .product(name: "Sparkle", package: "Sparkle")
             ],
-            path: "Sources/GridWindowManager",
+            path: "Sources/Places",
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ],
@@ -34,12 +34,12 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "GridWindowManagerTests",
+            name: "PlacesTests",
             dependencies: [
-                "GridWindowManager",
+                "Places",
                 "WindowFixtureApp"
             ],
-            path: "Tests/GridWindowManagerTests",
+            path: "Tests/PlacesTests",
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ]

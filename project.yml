@@ -1,4 +1,4 @@
-name: GridWindowManager
+name: Places
 options:
   bundleIdPrefix: com.ideasbyrobert
   createIntermediateGroups: true
@@ -25,12 +25,12 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_VERSION: "6.0"
 targets:
-  GridWindowManager:
+  Places:
     type: application
     platform: macOS
     sources:
-      - path: Sources/GridWindowManager
-      - path: Resources/GridWindowManager.icon
+      - path: Sources/Places
+      - path: Resources/Places.icon
         buildPhase: resources
     info:
       path: .derived/xcodegen/Info.plist
@@ -38,8 +38,8 @@ targets:
         LSApplicationCategoryType: public.app-category.utilities
         LSMultipleInstancesProhibited: true
         LSUIElement: true
-        NSAppleEventsUsageDescription: GridWindowManager uses Terminal Automation only to set the selected tab in each Terminal window to 80 columns by 48 rows when you choose Arrange App Windows 4 × 2.
-        SUFeedURL: https://downloads.ideasbyrobert.com/spread/appcast.xml
+        NSAppleEventsUsageDescription: Places uses Terminal Automation only to set the selected tab in each Terminal window to 80 columns by 48 rows when you choose Arrange App Windows 4 × 2.
+        SUFeedURL: https://downloads.ideasbyrobert.com/places/appcast.xml
         SUPublicEDKey: +vhVXgERIDkF9jUDCo/eorsxZ8NP52N+ILOpYHZCiKQ=
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
@@ -47,15 +47,15 @@ targets:
       - package: Sparkle
         product: Sparkle
     entitlements:
-      path: Resources/GridWindowManager.entitlements
+      path: Resources/Places.entitlements
       properties:
         com.apple.security.automation.apple-events: true
     settings:
       base:
-        ASSETCATALOG_COMPILER_APPICON_NAME: GridWindowManager
+        ASSETCATALOG_COMPILER_APPICON_NAME: Places
         COMBINE_HIDPI_IMAGES: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManager
-        PRODUCT_NAME: GridWindowManager
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.Places
+        PRODUCT_NAME: Places
   WindowFixtureApp:
     type: application
     platform: macOS
@@ -65,49 +65,49 @@ targets:
       path: Resources/FixtureInfo.plist
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManager.WindowFixtureApp
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.Places.WindowFixtureApp
         PRODUCT_NAME: WindowFixtureApp
-  GridWindowManagerTests:
+  PlacesTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: Tests/GridWindowManagerTests
+      - path: Tests/PlacesTests
     dependencies:
-      - target: GridWindowManager
+      - target: Places
       - target: WindowFixtureApp
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_NSAppleEventsUsageDescription: GridWindowManager tests automate disposable Terminal windows only during the explicit live Terminal test.
-        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManagerTests
-  GridWindowManagerUITests:
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: Places tests automate disposable Terminal windows only during the explicit live Terminal test.
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.PlacesTests
+  PlacesUITests:
     type: bundle.ui-testing
     platform: macOS
     sources:
-      - path: Tests/GridWindowManagerUITests
+      - path: Tests/PlacesUITests
     dependencies:
-      - target: GridWindowManager
+      - target: Places
       - target: WindowFixtureApp
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: NO
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.GridWindowManagerUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ideasbyrobert.PlacesUITests
 schemes:
-  GridWindowManager:
+  Places:
     build:
       targets:
-        GridWindowManager: all
+        Places: all
         WindowFixtureApp: [test]
-        GridWindowManagerTests: [test]
-        GridWindowManagerUITests: [test]
+        PlacesTests: [test]
+        PlacesUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - GridWindowManagerTests
-        - GridWindowManagerUITests
+        - PlacesTests
+        - PlacesUITests
     archive:
       config: Release
   WindowFixtureApp:

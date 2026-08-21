@@ -5,10 +5,13 @@ DMG="${1:?usage: publish_update.sh <notarized-dmg> <app-bundle>}"
 APP="${2:?usage: publish_update.sh <notarized-dmg> <app-bundle>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-BUCKET="${SPREAD_UPDATE_BUCKET:-ideasbyrobert-assets}"
-PREFIX="${SPREAD_UPDATE_PREFIX:-spread}"
-BASE_URL="${SPREAD_UPDATE_URL:-https://downloads.ideasbyrobert.com/spread}"
-ACCOUNT="${SPREAD_SPARKLE_ACCOUNT:-Spread}"
+BUCKET="${PLACES_UPDATE_BUCKET:-ideasbyrobert-assets}"
+PREFIX="${PLACES_UPDATE_PREFIX:-places}"
+BASE_URL="${PLACES_UPDATE_URL:-https://downloads.ideasbyrobert.com/places}"
+# Deliberately still "Spread": this names the keychain account holding the
+# Sparkle EdDSA private key whose public half is pinned in the app as
+# SUPublicEDKey. Renaming it would not rename the key, it would fail to find it.
+ACCOUNT="${PLACES_SPARKLE_ACCOUNT:-Spread}"
 CHANNEL="$ROOT/.derived/update-channel"
 ARCHIVES="$CHANNEL/archives"
 APPCAST="$ARCHIVES/appcast.xml"
@@ -43,7 +46,7 @@ if [ ! -f "$APPCAST" ]; then
     fi
 fi
 
-ZIP="$ARCHIVES/GridWindowManager-$VERSION-$BUILD.zip"
+ZIP="$ARCHIVES/Places-$VERSION-$BUILD.zip"
 say "Archiving $APP -> $(basename "$ZIP")"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
@@ -52,7 +55,7 @@ say "Generating appcast (Sparkle key account: $ACCOUNT)"
 "$GENERATE" \
     --account "$ACCOUNT" \
     --download-url-prefix "$BASE_URL/" \
-    --link "https://github.com/ideasbyrobert/spread" \
+    --link "https://github.com/ideasbyrobert/places" \
     --maximum-versions 5 \
     --maximum-deltas 0 \
     "$ARCHIVES"
@@ -78,12 +81,38 @@ put()
 
 say "Uploading to Cloudflare R2 ($BUCKET/$PREFIX)"
 put "$(basename "$ZIP")" "$ZIP" "application/zip" "public, max-age=31536000, immutable"
-put "GridWindowManager-$VERSION-$BUILD.dmg" "$DMG" "application/x-apple-diskimage" \
+put "Places-$VERSION-$BUILD.dmg" "$DMG" "application/x-apple-diskimage" \
     "public, max-age=31536000, immutable"
-put "latest/GridWindowManager.dmg" "$DMG" "application/x-apple-diskimage" \
-    "no-cache, no-store, must-revalidate" 'attachment; filename="GridWindowManager.dmg"'
+put "latest/Places.dmg" "$DMG" "application/x-apple-diskimage" \
+    "no-cache, no-store, must-revalidate" 'attachment; filename="Places.dmg"'
 put "appcast.xml" "$APPCAST" "application/xml; charset=utf-8" \
     "no-cache, no-store, must-revalidate"
+
+# The human download page, and the faces and mark it sets itself in. The
+# version line is filled in here rather than stored in the template, so the
+# page cannot advertise a build that was never published.
+SHARE="$ROOT/ReleaseShare"
+if [ -d "$SHARE" ]; then
+    PAGE="$(mktemp /private/tmp/places-download.XXXXXX)"
+    # Read from the built bundle, the same source VERSION and BUILD come from,
+    # so the page describes the artifact actually being published.
+    MINIMUM="$(defaults read "$APP/Contents/Info.plist" LSMinimumSystemVersion)"
+    sed "s|VERSION_LINE|$VERSION ($BUILD) · macOS $MINIMUM+ · Notarized|" \
+        "$SHARE/download.html" > "$PAGE"
+    put "download" "$PAGE" "text/html; charset=utf-8" "no-cache, no-store, must-revalidate"
+    rm -f "$PAGE"
+
+    for asset in "$SHARE/assets"/*; do
+        [ -e "$asset" ] || continue
+        case "$asset" in
+            *.woff2) type="font/woff2" ;;
+            *.svg)   type="image/svg+xml" ;;
+            *.png)   type="image/png" ;;
+            *)       type="application/octet-stream" ;;
+        esac
+        put "assets/$(basename "$asset")" "$asset" "$type" "public, max-age=31536000, immutable"
+    done
+fi
 
 say "Verifying the public feed"
 for _ in $(seq 1 12); do
@@ -97,12 +126,13 @@ done
 [ "${GOT:-}" = "$BUILD" ] || { echo "error: public feed never showed build $BUILD" >&2; exit 65; }
 
 curl --fail --silent --show-error --head --location "$BASE_URL/$(basename "$ZIP")" -o /dev/null
-curl --fail --silent --show-error --head --location "$BASE_URL/latest/GridWindowManager.dmg" -o /dev/null
+curl --fail --silent --show-error --head --location "$BASE_URL/latest/Places.dmg" -o /dev/null
 
 cat <<SUMMARY
 
-Published GridWindowManager $VERSION (build $BUILD)
+Published Places $VERSION (build $BUILD)
   Sparkle feed : $REMOTE_APPCAST
   Update ZIP   : $BASE_URL/$(basename "$ZIP")
-  Stable DMG   : $BASE_URL/latest/GridWindowManager.dmg
+  Stable DMG   : $BASE_URL/latest/Places.dmg
+  Download page: $BASE_URL/download
 SUMMARY

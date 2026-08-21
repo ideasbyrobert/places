@@ -2,8 +2,8 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="GridWindowManager"
-BUNDLE_ID="com.ideasbyrobert.GridWindowManager"
+APP_NAME="Places"
+BUNDLE_ID="com.ideasbyrobert.Places"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/.build/DerivedData"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
@@ -16,7 +16,7 @@ build_app()
     cd "$ROOT_DIR"
     xcodegen generate
     xcodebuild \
-        -project "$ROOT_DIR/GridWindowManager.xcodeproj" \
+        -project "$ROOT_DIR/Places.xcodeproj" \
         -scheme "$APP_NAME" \
         -configuration Debug \
         -derivedDataPath "$DERIVED_DATA" \

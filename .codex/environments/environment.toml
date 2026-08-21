@@ -1,5 +1,5 @@
 version = 1
-name = "GridWindowManager"
+name = "Places"
 
 [setup]
 script = ""

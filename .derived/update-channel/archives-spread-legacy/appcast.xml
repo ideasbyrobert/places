@@ -1,0 +1,33 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>GridWindowManager</title>
+        <item>
+            <title>1.0.2</title>
+            <pubDate>Fri, 21 Aug 2026 02:30:09 -0700</pubDate>
+            <link>https://github.com/ideasbyrobert/spread</link>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://downloads.ideasbyrobert.com/spread/GridWindowManager-1.0.2-3.zip" length="2394984" type="application/octet-stream" sparkle:edSignature="Q95Qd8R9wJhgNj93r3nJe5KlQjIfSATYX0Q8hDWP31/JgGNK9w9pYGWxKWCeYNClX7Y/eCfeLmjq1X359JrABg=="/>
+        </item>
+        <item>
+            <title>1.0.1</title>
+            <pubDate>Thu, 20 Aug 2026 11:04:05 -0700</pubDate>
+            <link>https://github.com/ideasbyrobert/spread</link>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://downloads.ideasbyrobert.com/spread/GridWindowManager-1.0.1-2.zip" length="2478815" type="application/octet-stream" sparkle:edSignature="ViSbaO7okJNxwjzmv8thmmU99U0epouWHoHP4q4YOJ1Ap5EefGfDt6nNcH6gQA01D09p5hyPiS8kXcyzuw7/Cg=="/>
+        </item>
+        <item>
+            <title>1.0</title>
+            <pubDate>Thu, 20 Aug 2026 10:10:33 -0700</pubDate>
+            <link>https://github.com/ideasbyrobert/spread</link>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://downloads.ideasbyrobert.com/spread/GridWindowManager-1.0-1.zip" length="2473789" type="application/octet-stream" sparkle:edSignature="FM7lySrfjtl08TsWcVAkl75zZQPkALgIhSoH3pgaVDcMJUPhHpLJfzYrIoJQbA5iX57bnc+3VBhUbpMpHRPxBA=="/>
+        </item>
+    </channel>
+</rss>
